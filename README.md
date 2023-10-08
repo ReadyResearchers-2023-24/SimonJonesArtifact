@@ -13,3 +13,4 @@ Run the following to set up your system. This information is taken from the [ros
 ### docs
 
 * [ROS2 Command Line Syntax](https://design.ros2.org/articles/ros_command_line_arguments.html)
+* [Colcon](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Colcon-Tutorial.html) is a tool used for managing and building ROS2 packages.
