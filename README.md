@@ -28,3 +28,4 @@ Run the following to set up your system. This information is taken from the [ros
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
     ...
     ```
+* `clangd`: changing C++ standard being used: [this link](https://stackoverflow.com/questions/73758291/is-there-a-way-to-specify-the-c-standard-of-clangd-without-recompiling-it)
