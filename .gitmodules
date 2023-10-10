@@ -1,0 +1,3 @@
+[submodule "src/clover_ros2_pkgs"]
+	path = src/clover_ros2_pkgs
+	url = git@github.com:StarlingUAS/clover_ros2_pkgs.git
