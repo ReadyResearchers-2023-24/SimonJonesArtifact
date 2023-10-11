@@ -1,3 +1,9 @@
 [submodule "src/clover_ros2_pkgs"]
 	path = src/clover_ros2_pkgs
-	url = git@github.com:StarlingUAS/clover_ros2_pkgs.git
+	url = git@github.com:simojo/clover_ros2_pkgs.git
+[submodule "Firmware"]
+	path = Firmware
+	url = https://github.com/PX4/Firmware.git
+[submodule "PX4-Autopilot"]
+	path = PX4-Autopilot
+	url = https://github.com/PX4/PX4-Autopilot.git
