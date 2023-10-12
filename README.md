@@ -73,7 +73,7 @@ Run the following to set up your system. This information is taken from the [ros
 
 ### Using `clover_vm` for simulating Clover
 
-The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in getting started simulating clover.
+The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in getting started simulating clover. The documentation can be found [here](https://clover.coex.tech/en/simulation_vm.html).
 
 * Setup
   * Download `clover_vm` image from [releases page](https://github.com/CopterExpress/clover_vm/releases/). Select the latest release and download. These are multigigabyte files, so they will be time consuming to download. Ensure you have enough space.
