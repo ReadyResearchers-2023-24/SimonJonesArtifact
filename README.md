@@ -71,6 +71,24 @@ Run the following to set up your system. This information is taken from the [ros
   docker pull osrf/ros:noetic-desktop-full
   ```
 
+### Using the [Clover VM](https://github.com/CopterExpress/clover_vm) for simulating Clover
+
+The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in getting started simulating clover.
+
+* Setup
+  * Download `clover_vm` image from [releases page](https://github.com/CopterExpress/clover_vm/releases/). Select the latest release and download. These are multigigabyte files, so they will be time consuming to download. Ensure you have enough space.
+  * Ensure you have VirtualBox installed. See [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204) for details.
+  * Set up the `clover_vm`. Note that this can be done through using `virtualbox`'s GUI.
+    ```sh
+    vboxmanage import /path/to/clover_vm.ova
+    ```
+  * Launch `virtualbox`
+    ```sh
+    virtualbox
+    ```
+  * Select the image named **clover-devel** and select **Start**.
+* Usage
+  * FIXME
 
 ### ROS Installation - NixOS
 
@@ -83,7 +101,7 @@ This section is a work in progress. Feel free to contribute.
 
 ## Reference
 
-### Installing Virtualbox - Ubuntu 22.04
+### Installing VirtualBox - Ubuntu 22.04
 
 [See here](https://www.virtualbox.org/wiki/Linux_Downloads#Debian-basedLinuxdistributions) for info from virtualbox.  
 
@@ -110,7 +128,7 @@ sudo /sbin/vboxconfig
 virtualbox
 ```
 
-### Installing docker - Ubuntu 22.04
+### Installing Docker - Ubuntu 22.04
 
 * Update the system
   ```sh
