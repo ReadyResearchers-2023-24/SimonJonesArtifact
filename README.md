@@ -12,6 +12,20 @@ Run the following to set up your system. This information is taken from the [ros
 . setup.sh
 ```
 
+### Installing Virtualbox - Ubuntu 22.04
+
+[See here] for info from virtualbox.  
+
+```sh
+# download virtualbox public key, convert to GPG key, and add to keyring
+wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
+# add package list to system
+sudo echo "deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" > /etc/apt/sources.list.d/virtualbox.list
+# install virtualbox
+sudo apt update
+sudo apt install virtualbox-7.0
+```
+
 #### ROS2 Rolling Installation - Ubuntu 22.04
 
 * Set locale
@@ -64,22 +78,37 @@ Run the following to set up your system. This information is taken from the [ros
 * Because ROS Noetic does not support Ubuntu 22.04 you either have to
   1. Build from source
   2. Use a docker container (recommended)
-* Update the system
+* Install docker
+    * Update the system
+    ```sh
+    sudo apt update
+    ```
+    * Add dependencies to install docker
+    ```sh
+    sudo apt install apt-transport-https ca-certificates curl software-properties-common
+    ```
+    * Add the official Docker key to avoid non-authentic packages
+    ```sh
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    ```
+    * Add the official Docker repo
+    ```sh
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+    ```
+    * Install Docker
+    ```sh
+    sudo apt install docker-ce
+    ```
+    * Docker should be installed, the daemon started, and the proces enabled to start on boot. Check that its running
+    ```sh
+    sudo systemctl status docker
+    # it should say `active (running)`
+    ```
+* Pull docker image with tag for `noetic-desktop-full`. For more tags, see [this link](https://hub.docker.com/r/osrf/ros/tags)
   ```sh
-  sudo apt update
+  docker pull osrf/ros:noetic-desktop-full
   ```
-* Add dependencies to install docker
-  ```sh
-  sudo apt install apt-transport-https ca-certificates curl software-properties-common
-  ```
-* Add the official Docker key to avoid non-authentic packages
-  ```sh
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-  ```
-* Add the official Docker repo
-  ```sh
-  sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
-  ```
+
 
 #### ROS Installation - NixOS
 
@@ -93,6 +122,7 @@ This section is a work in progress. Feel free to contribute.
 ### docs
 
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
+* [COEX Clover Simulation VM](https://github.com/CopterExpress/clover_vm): simple way to get familiarized with simulating the Clover without installation process.
 * Creating a new package in ROS2 (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
   * ```sh
     ros2 pkg create --build-type ament_cmake <package_name>
