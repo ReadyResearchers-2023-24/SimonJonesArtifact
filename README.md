@@ -71,7 +71,7 @@ Run the following to set up your system. This information is taken from the [ros
   docker pull osrf/ros:noetic-desktop-full
   ```
 
-### Using the [Clover VM](https://github.com/CopterExpress/clover_vm) for simulating Clover
+### Using `clover_vm` for simulating Clover
 
 The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in getting started simulating clover.
 
