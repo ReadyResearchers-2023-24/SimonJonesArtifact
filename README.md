@@ -14,16 +14,25 @@ Run the following to set up your system. This information is taken from the [ros
 
 ### Installing Virtualbox - Ubuntu 22.04
 
-[See here] for info from virtualbox.  
+[See here](https://www.virtualbox.org/wiki/Linux_Downloads#Debian-basedLinuxdistributions) for info from virtualbox.  
 
 ```sh
 # download virtualbox public key, convert to GPG key, and add to keyring
 wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
 # add package list to system
 sudo echo "deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" > /etc/apt/sources.list.d/virtualbox.list
+
 # install virtualbox
 sudo apt update
 sudo apt install virtualbox-7.0
+
+# note: before running, check if virtualbox-dkms is installed (you don't want it installed) (see https://askubuntu.com/questions/900794/virtualbox-rtr3initex-failed-with-rc-1912-rc-1912)
+dpkg -l | grep virtualbox-dkms
+# if yes, then delete and install `dkms`
+sudo apt-get purge virtualbox-dkms
+sudo apt-get install dkms
+# and rebuild virtualbox kernel modules
+sudo /sbin/vboxconfig
 ```
 
 #### ROS2 Rolling Installation - Ubuntu 22.04
