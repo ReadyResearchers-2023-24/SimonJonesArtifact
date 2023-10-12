@@ -59,6 +59,28 @@ Run the following to set up your system. This information is taken from the [ros
   ```
 * Try out examples and read tutorials.
 
+#### ROS1 Noetic Installation - Ubuntu 22.04
+
+* Because ROS Noetic does not support Ubuntu 22.04 you either have to
+  1. Build from source
+  2. Use a docker container (recommended)
+* Update the system
+  ```sh
+  sudo apt update
+  ```
+* Add dependencies to install docker
+  ```sh
+  sudo apt install apt-transport-https ca-certificates curl software-properties-common
+  ```
+* Add the official Docker key to avoid non-authentic packages
+  ```sh
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  ```
+* Add the official Docker repo
+  ```sh
+  sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+  ```
+
 #### ROS Installation - NixOS
 
 This section is a work in progress. Feel free to contribute.  
