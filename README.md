@@ -69,7 +69,7 @@ This section is a work in progress. Feel free to contribute.
 ### docs
 
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
-* Createing a new package in ROS2 (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
+* Creating a new package in ROS2 (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
   * ```sh
     ros2 pkg create --build-type ament_cmake <package_name>
     ros2 pkg create --build-type <build_type> --node-name <node_name> <package_name> --license <license>
