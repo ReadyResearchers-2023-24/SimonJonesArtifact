@@ -141,10 +141,10 @@ virtualbox
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
 * [COEX Clover Simulation VM](https://github.com/CopterExpress/clover_vm): simple way to get familiarized with simulating the Clover without installation process.
 * Creating a new package in ROS2 (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
-  * ```sh
-    ros2 pkg create --build-type ament_cmake <package_name>
-    ros2 pkg create --build-type <build_type> --node-name <node_name> <package_name> --license <license>
-    ```
+  ```sh
+  ros2 pkg create --build-type ament_cmake <package_name>
+  ros2 pkg create --build-type <build_type> --node-name <node_name> <package_name> --license <license>
+  ```
 
 * [ROS2 Command Line Syntax](https://design.ros2.org/articles/ros_command_line_arguments.html)
 * [Colcon](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Colcon-Tutorial.html) is a tool used for managing and building ROS2 packages.
