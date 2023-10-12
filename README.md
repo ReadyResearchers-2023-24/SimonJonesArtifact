@@ -1,6 +1,8 @@
 # Research Artifact - Simon Jones
 
-This is work toward simulating the COEX Clover drone in ROS2.
+This is work toward simulating the COEX Clover drone in ROS2.  
+
+See [link to project proposal](https://simon-jones.netlify.app/comp/2023-10-06) for further details.  
 
 ### Setup
 
