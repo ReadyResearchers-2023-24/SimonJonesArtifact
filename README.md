@@ -135,7 +135,7 @@ virtualbox
 * Docker should be installed, the daemon started, and the proces enabled to start on boot. Check that its running
   ```sh
   sudo systemctl status docker
-# it should say `active (running)`
+  # it should say `active (running)`
   ```
 
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
