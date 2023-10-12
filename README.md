@@ -12,30 +12,7 @@ Run the following to set up your system. This information is taken from the [ros
 . setup.sh
 ```
 
-### Installing Virtualbox - Ubuntu 22.04
-
-[See here](https://www.virtualbox.org/wiki/Linux_Downloads#Debian-basedLinuxdistributions) for info from virtualbox.  
-
-```sh
-# download virtualbox public key, convert to GPG key, and add to keyring
-wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
-# add package list to system
-sudo echo "deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" > /etc/apt/sources.list.d/virtualbox.list
-
-# install virtualbox
-sudo apt update
-sudo apt install virtualbox-7.0
-
-# note: before running, check if virtualbox-dkms is installed (you don't want it installed) (see https://askubuntu.com/questions/900794/virtualbox-rtr3initex-failed-with-rc-1912-rc-1912)
-dpkg -l | grep virtualbox-dkms
-# if yes, then delete and install `dkms`
-sudo apt-get purge virtualbox-dkms
-sudo apt-get install dkms
-# and rebuild virtualbox kernel modules
-sudo /sbin/vboxconfig
-```
-
-#### ROS2 Rolling Installation - Ubuntu 22.04
+### ROS2 Rolling Installation - Ubuntu 22.04
 
 * Set locale
   ```sh
@@ -82,44 +59,20 @@ sudo /sbin/vboxconfig
   ```
 * Try out examples and read tutorials.
 
-#### ROS1 Noetic Installation - Ubuntu 22.04
+### ROS1 Noetic Installation - Ubuntu 22.04
 
 * Because ROS Noetic does not support Ubuntu 22.04 you either have to
   1. Build from source
   2. Use a docker container (recommended)
-* Install docker
-    * Update the system
-    ```sh
-    sudo apt update
-    ```
-    * Add dependencies to install docker
-    ```sh
-    sudo apt install apt-transport-https ca-certificates curl software-properties-common
-    ```
-    * Add the official Docker key to avoid non-authentic packages
-    ```sh
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    ```
-    * Add the official Docker repo
-    ```sh
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
-    ```
-    * Install Docker
-    ```sh
-    sudo apt install docker-ce
-    ```
-    * Docker should be installed, the daemon started, and the proces enabled to start on boot. Check that its running
-    ```sh
-    sudo systemctl status docker
-    # it should say `active (running)`
-    ```
+* This assumes you have `docker` installed. See [Installing docker - Ubuntu 22.04](#installing-docker---ubuntu-2204) for details.
+
 * Pull docker image with tag for `noetic-desktop-full`. For more tags, see [this link](https://hub.docker.com/r/osrf/ros/tags)
   ```sh
   docker pull osrf/ros:noetic-desktop-full
   ```
 
 
-#### ROS Installation - NixOS
+### ROS Installation - NixOS
 
 This section is a work in progress. Feel free to contribute.  
 
@@ -128,7 +81,62 @@ This section is a work in progress. Feel free to contribute.
     FIXME
     ```
 
-### docs
+## Reference
+
+### Installing Virtualbox - Ubuntu 22.04
+
+[See here](https://www.virtualbox.org/wiki/Linux_Downloads#Debian-basedLinuxdistributions) for info from virtualbox.  
+
+```sh
+# download virtualbox public key, convert to GPG key, and add to keyring
+wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
+
+# add package list to system
+sudo echo "deb [arch=amd64 signed-by=/usr/share/keyrings/virtualbox.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" > /etc/apt/sources.list.d/virtualbox.list
+
+# install virtualbox
+sudo apt update
+sudo apt install virtualbox-7.0
+
+# NOTE: before running, check if virtualbox-dkms is installed (you don't want it installed) (see https://askubuntu.com/questions/900794/virtualbox-rtr3initex-failed-with-rc-1912-rc-1912)
+dpkg -l | grep virtualbox-dkms
+# if yes, then delete and install `dkms`
+sudo apt-get purge virtualbox-dkms
+sudo apt-get install dkms
+# and rebuild virtualbox kernel modules
+sudo /sbin/vboxconfig
+
+# otherwise, you can now run virtualbox
+virtualbox
+```
+
+### Installing docker - Ubuntu 22.04
+
+* Update the system
+  ```sh
+  sudo apt update
+  ```
+* Add dependencies to install docker
+  ```sh
+  sudo apt install apt-transport-https ca-certificates curl software-properties-common
+  ```
+* Add the official Docker key to avoid non-authentic packages
+  ```sh
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  ```
+* Add the official Docker repo
+  ```sh
+  sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+  ```
+* Install Docker
+  ```sh
+  sudo apt install docker-ce
+  ```
+* Docker should be installed, the daemon started, and the proces enabled to start on boot. Check that its running
+  ```sh
+  sudo systemctl status docker
+# it should say `active (running)`
+  ```
 
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
 * [COEX Clover Simulation VM](https://github.com/CopterExpress/clover_vm): simple way to get familiarized with simulating the Clover without installation process.
