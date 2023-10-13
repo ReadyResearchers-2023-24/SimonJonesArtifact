@@ -75,7 +75,7 @@ Run the following to set up your system. This information is taken from the [ros
 
 The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in getting started simulating clover. The documentation can be found [here](https://clover.coex.tech/en/simulation_vm.html).
 
-* Setup
+* **Setup**
   * Download `clover_vm` image from [releases page](https://github.com/CopterExpress/clover_vm/releases/). Select the latest release and download. These are multigigabyte files, so they will be time consuming to download. Ensure you have enough space.
   * Ensure you have VirtualBox installed. See [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204) for details.
   * Set up the `clover_vm`. Note that this can be done through using `virtualbox`'s GUI.
@@ -86,9 +86,20 @@ The [clover_vm](https://github.com/CopterExpress/clover_vm) image is helpful in 
     ```sh
     virtualbox
     ```
-  * Select the image named **clover-devel** and select **Start**.
-* Usage
-  * FIXME
+  * Select the image named **clover-devel**.
+  * Change its settings such that it has at least 4GB of memory and as many cores as your system.
+  * Now that the image is fully configured, select **Start**.
+* **Usage**
+  * In the virtual machine, Open a terminal and launch the simulation. Sourcing will already be done, because the virtual machine is preconfigured. This opens a Gazebo instance and a PX4 SITL simulation in the console. The Gazebo instance is what you'll want to refer back to.
+  ```sh
+  roslaunch clover_simulate simulator.launch
+  ```
+  * In a new terminal, run one of the python scripts in `~/examples/` using `python3`.
+  ```sh
+  python3 examples/flight.py # this is a fun one
+  ```
+  * Refer back to the open Gazebo instance to see the drone begin to arm. The expected behavior is that the drone takes off, moves one meter horizontally, and lands again.
+  * Now you've demonstrated that your system can simulate the Clover!
 
 ### ROS Installation - NixOS
 
