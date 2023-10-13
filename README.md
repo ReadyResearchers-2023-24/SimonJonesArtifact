@@ -94,13 +94,17 @@ getting started simulating clover. The documentation can be found
     for details.
   * Set up the `clover_vm`. Note that this can be done through using 
   `virtualbox`'s GUI.
+
     ```sh
     vboxmanage import /path/to/clover_vm.ova
     ```
+
   * Launch `virtualbox`
+
     ```sh
     virtualbox
     ```
+
   * Select the image named **clover-devel**.
   * Change its settings such that it has at least 4GB of memory and as many cores as
     your system.
@@ -110,13 +114,17 @@ getting started simulating clover. The documentation can be found
     will already be done, because the virtual machine is preconfigured. This opens
     a Gazebo instance and a PX4 SITL simulation in the console. The Gazebo
     instance is what you'll want to refer back to.
-  ```sh
-  roslaunch clover_simulate simulator.launch
-  ```
+
+    ```sh
+    roslaunch clover_simulate simulator.launch
+    ```
+
   * In a new terminal, run one of the python scripts in `~/examples/` using `python3`.
-  ```sh
-  python3 examples/flight.py # this is a fun one
-  ```
+
+    ```sh
+    python3 examples/flight.py # this is a fun one
+    ```
+
   * Refer back to the open Gazebo instance to see the drone begin to arm. The
     expected behavior is that the drone takes off, moves one meter horizontally,
     and lands again.
@@ -127,9 +135,10 @@ getting started simulating clover. The documentation can be found
 This section is a work in progress. Feel free to contribute.  
 
 * FIXME
-    ```sh
-    FIXME
-    ```
+
+  ```sh
+  FIXME
+  ```
 
 ## Reference
 
@@ -164,27 +173,38 @@ virtualbox
 ### Installing Docker - Ubuntu 22.04
 
 * Update the system
+
   ```sh
   sudo apt update
   ```
+
 * Add dependencies to install docker
+
   ```sh
   sudo apt install apt-transport-https ca-certificates curl software-properties-common
   ```
+
 * Add the official Docker key to avoid non-authentic packages
+
   ```sh
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
   ```
+
 * Add the official Docker repo
+
   ```sh
   sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
   ```
+
 * Install Docker
+
   ```sh
   sudo apt install docker-ce
   ```
+
 * Docker should be installed, the daemon started, and the proces enabled to
   start on boot. Check that its running
+
   ```sh
   sudo systemctl status docker
   # it should say `active (running)`
@@ -195,6 +215,7 @@ virtualbox
   simple way to get familiarized with simulating the Clover without installation process.
 * Creating a new package in ROS2 
   (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
+
   ```sh
   ros2 pkg create --build-type ament_cmake <package_name>
   ros2 pkg create --build-type <build_type> --node-name <node_name> <package_name> --license <license>
@@ -207,10 +228,12 @@ virtualbox
   * In order to get `clangd` to work with the libraries/headers in your project,
     set the following at the top of each `CMakeLists.txt` file in the projects
     you're working on:
+
     ```cmake
     # CMakeLists.txt
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
     ...
     ```
+
 * `clangd`: changing C++ standard being used:
   [this link](https://stackoverflow.com/questions/73758291/is-there-a-way-to-specify-the-c-standard-of-clangd-without-recompiling-it)
