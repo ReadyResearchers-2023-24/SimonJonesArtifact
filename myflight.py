@@ -35,6 +35,14 @@ set_attitude = rospy.ServiceProxy('set_attitude', srv.SetAttitude)
 set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
+optimizer = keras.optimizers.Adam(learning_rate = 0.01)
+huber_loss = keras.losses.Huber()
+action_probs_history = []
+critic_value_history = []
+rewards_history = []
+running_reward = 0
+episode_count = 0
+
 while True:
     reset_world()
 
