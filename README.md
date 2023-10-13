@@ -109,7 +109,7 @@ getting started simulating clover. The documentation can be found
   * Ensure you have VirtualBox installed. See
     [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204)
     for details.
-  * Set up the `clover_vm`. Note that this can be done through using 
+  * Set up the `clover_vm`. Note that this can be done through using
     `virtualbox`'s GUI.
 
     ```sh
@@ -230,7 +230,7 @@ virtualbox
 * [COEX Clover ROS docs](http://wiki.ros.org/Robots/clover)
 * [COEX Clover Simulation VM](https://github.com/CopterExpress/clover_vm):
   simple way to get familiarized with simulating the Clover without installation process.
-* Creating a new package in ROS2 
+* Creating a new package in ROS2
   (see [here](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html#create-a-package))
 
   ```sh
