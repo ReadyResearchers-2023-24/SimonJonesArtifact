@@ -19,6 +19,7 @@ Run the following to set up your system. This information is taken from the
 ### ROS2 Rolling Installation - Ubuntu 22.04
 
 * Set locale
+
   ```sh
   locale  # check for UTF-8
 
@@ -29,39 +30,54 @@ Run the following to set up your system. This information is taken from the
 
   locale  # verify settings
   ```
+
 * Ensure Ubuntu Universe repository is enabled
+
   ```sh
   sudo apt install software-properties-common
   sudo add-apt-repository universe
   ```
+
 * Add ROS2 GPG key with apt
+
   ```sh
   sudo apt update && sudo apt install curl -y
   sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
   ```
+
 * Add ROS2 repository to your sources list
+
   ```sh
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
     | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
   ```
+
 * Update your apt repository caches after setting up the repositories. Do not
   skip this step.
+
   ```sh
   sudo apt update
   sudo apt upgrade
   ```
+
 * Install `ros-rolling-desktop`
+
   ```sh
   sudo apt install ros-rolling-desktop
   ```
+
 * Install `ros-rolling-ros-base`
+
   ```sh
   sudo apt install ros-rolling-desktop
   ```
+
 * Set up environment by sourcing ROS2 `setup.bash`, `setup.sh`, etc.
+
   ```sh
   . /opt/ros/rolling/setup.bash
   ```
+
 * Try out examples and read tutorials.
 
 ### ROS1 Noetic Installation - Ubuntu 22.04
@@ -74,6 +90,7 @@ Run the following to set up your system. This information is taken from the
 
 * Pull docker image with tag for `noetic-desktop-full`.
   For more tags, see [this link](https://hub.docker.com/r/osrf/ros/tags)
+
   ```sh
   docker pull osrf/ros:noetic-desktop-full
   ```
@@ -93,7 +110,7 @@ getting started simulating clover. The documentation can be found
     [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204)
     for details.
   * Set up the `clover_vm`. Note that this can be done through using 
-  `virtualbox`'s GUI.
+    `virtualbox`'s GUI.
 
     ```sh
     vboxmanage import /path/to/clover_vm.ova
