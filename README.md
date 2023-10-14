@@ -7,6 +7,8 @@ up a simulation environment for developing with
 this project. To skip to the simulation instructions, see
 [Prototype](#prototype).
 
+## Preface
+
 Simon J. Jones  
 Daniel Willey, PhD  
 Janyl Jumadinova, PhD
@@ -17,8 +19,7 @@ Fall 2023
 *Department of Computer and Information Science*  
 *Allegheny College, Meadville, PA 16335*
 
-
-## Introduction & Background
+### Preface - Introduction & Background
 
 Robotic navigation is the ability of an autonomous system to determine a
 course of action to avoid colliding with an obstacle. Navigation is
@@ -46,7 +47,7 @@ algorithms has prevented the learning process from tending toward a
 local minima rather than the desired global minima. (Hodge, Hawkins, and
 Alexander 2021)
 
-## Proposed Experimental Details
+### Preface - Proposed Experimental Details
 
 The chosen quadcopter platform is the drone, which uses open source
 software, ideal for our purpose. (“COEX Clover,” n.d.) The Clover can be
@@ -91,7 +92,7 @@ iterations of arbitrary 3D shapes in a simulation. We plan to use sheets
 of cardboard, or some other cheap material, to create obstacles to use
 in our testing.
 
-## Measure of Success
+### Preface - Measure of Success
 
 During the final stages of this project, we will evaluate the
 effectiveness of the quadcopter in its ability to navigate through
@@ -101,7 +102,7 @@ what defines the navigability of a space. Then, we will be able to view
 the performance of the model with respect to the navigabililty metric to
 provide a quantitative evaluation of our model.
 
-## Conclusion
+### Preface - Conclusion
 
 Autonomous systems capable of navigation will be integral to a society
 based upon autonomous transportation and delivery. Exploring a current
@@ -117,7 +118,7 @@ growing rapidly, these principles will be applicable for decades ahead,
 and this will work will benefit not only myself but also future students
 at Allegheny with an interest in autonomous systems.
 
-# Prototype
+## Prototype
 
 This repository is work toward simulating the COEX Clover drone in the
 Robotic Operating System (ROS). By following the steps here, you will
@@ -262,6 +263,7 @@ for info from VirtualBox.
     ```
 
   * Now, rebuild VirtualBox kernel modules.
+
     ```sh
     sudo /sbin/vboxconfig
     ```
