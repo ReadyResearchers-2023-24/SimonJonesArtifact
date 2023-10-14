@@ -1,29 +1,13 @@
-import rospy
-import numpy as np
-import tensorflow as tf
-
 from clover import srv
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
-from tensorflow import keras
-from tensorflow.keras import layers
 
-gamma = 0.99 # discount factor for past rewards
-epsilon = np.finfo(np.float32).eps.item() # smallest number such that 1.0 + eps != 1.0
+from threading import Thread
 
-num_inputs = 9
-num_actions = 2
-num_hidden = 128
-
-inputs = layers.Input(shape=(num_inputs,))
-common = layers.Dense(num_hidden, activation="relu")(inputs)
-action = layers.Dense(num_actions, activation="softmax")(common)
-critic = layers.Dense(1)(common)
-
-model = keras.Model(inputs=inputs, outputs=[action, critic])
-
+# initialize rospy flight node
 rospy.init_node('flight')
 
+# initialize clover-related services
 rospy.wait_for_service('/gazebo/reset_world')
 reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
 get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
@@ -35,138 +19,115 @@ set_attitude = rospy.ServiceProxy('set_attitude', srv.SetAttitude)
 set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
-optimizer = keras.optimizers.Adam(learning_rate = 0.01)
-huber_loss = keras.losses.Huber()
-action_probs_history = []
-critic_value_history = []
-rewards_history = []
-running_reward = 0
-episode_count = 0
+# create shared mutex for reading console input
+key_mutex = threading.Lock()
+keypress_queue = []
+run = True
 
-while True:
-    reset_world()
+class DroneMovements:
+    def up():
+        """Move up one meter."""
+        navigate(x=0, y=0, z=1, frame_id='body', auto_arm=True)
 
-    episode_reward = 0
-    with tf.GradientTape() as tape:
-        for timestamp in range(1, max_steps_per_episode):
-            # get current state
-            telemetry_info = get_telemetry()
-            state = tf.convert_to_tensor([
-                telemetry_info.x,
-                telemetry_info.y,
-                telemetry_info.z,
-                telemetry_info.vx,
-                telemetry_info.vy,
-                telemetry_info.vz,
-                telemetry_info.roll,
-                telemetry_info.pitch,
-                telemetry_info.yaw
-            ])
-            state = tf.expand_dims(state, 0)
+    def down():
+        """Move down one meter."""
+        navigate(x=0, y=0, z=-1, frame_id='body', auto_arm=True)
 
-            # predict action probabilities and estimated future rewards
-            # from environment state
-            action_probs, critic_value = model(state)
-            critic_value_history.append(critic_value[0, 0])
+    def left():
+        """Move left one meter."""
+        navigate(x=-1, y=0, z=0, frame_id='body', auto_arm=True)
 
-            # sample action from probability distribution
-            # FIXME: how to choose action?
-            # we have:
-            #   thrust
-            #   pitch
-            #   roll
-            #   yaw
-            action = np.random.choice(num_actions, p=np.squeeze(action_probs))
-            action_probs_history.append(tf.math.log(action_probs[0, action]))
+    def right():
+        """Move right one meter."""
+        navigate(x=1, y=0, z=0, frame_id='body', auto_arm=True)
 
-            # apply the sampled action in our environment
-            # FIXME: change attitude
-            set_attitude(
-                pitch=1.0,
-                roll=1.0, 
-                thrust=1.0,
-                yaw=1.0
-            )
+    def forward():
+        """Move forward one meter."""
+        navigate(x=0, y=1, z=0, frame_id='body', auto_arm=True)
 
-            telemetry_info = get_telemetry()
-            # get current distance from (0,0,1)
-            desired_pos = [0,0,1]
-            current_pos = [telemetry_info.x, telemetry_info.y, telemetry_info.z]
-            get_magnitude = lambda x: np.linalg.norm(x)
-            distance_from_desired_pos = get_magnitude(np.subtract(desired_pos, current_pos))
-            # reward is negative of the distance from the desired position
-            reward = -distance_from_desired_pos
-            episode_reward += reward
+    def backward():
+        """Move backward one meter."""
+        navigate(x=0, y=-1, z=1, frame_id='body', auto_arm=True)
 
-            # NOTE: have done metric?
-            done = False
+    def reset():
+        """Reset world."""
+        reset_world()
 
-            if done:
-                break
+    def land():
+        """Land the drone."""
+        land()
 
-        
-        running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
-        # calculate expected value from rewards
-        # - at each timestep what was the total reward received after that timestep
-        # - rewards in the past are discounted by multiplying them with gamma
-        # - these are the labels for our critic
-        returns = []
-        discounted_sum = 0
-        for r in rewards_history[::-1]:
-            discounted_sum = r + gamma * discounted_sum
-            returns.insert(0, discounted_sum)
+def ros_runner(lock):
+    """Function for sending ros messages."""
+    while True:
+        # check if quit has been triggered
+        lock.acquire()
+        if not run:
+            lock.release()
+            break
+        if (len(keypress_queue) > 0):
+            # obtain next keypress from the queue
+            next_keypress = keypress_queue.pop()
+            # release the lock and let keyboard events be processed
+            lock.release()
+            # process commands
+            if (next_keypress.lower() == "q"):
+                lock.acquire()
+                run = False
+                lock.release()
+            elif (next_keypress.lower() == " "):
+                DroneMovements.up()
+            elif (next_keypress.lower() == "x"):
+                DroneMovements.down()
+            elif (next_keypress.lower() == "a"):
+                DroneMovements.left()
+            elif (next_keypress.lower() == "d"):
+                DroneMovements.right()
+            elif (next_keypress.lower() == "w"):
+                DroneMovements.forward()
+            elif (next_keypress.lower() == "s"):
+                DroneMovements.backward()
+            elif (next_keypress.lower() == "r"):
+                DroneMovements.reset()
+            elif (next_keypress.lower() == "l"):
+                DroneMovements.land()
+        else:
+            lock.release()
 
-        # normalize
-        returns = np.array(returns)
-        returns = (returns - np.mean(returns)) / (np.std(returns) + epsilon)
-        returns = returns.tolist()
 
-        # calculating loss values to update our network
-        history = zip(action_probs_history, critic_value_history, returns)
-        actor_losses = []
-        critic_losses = []
-        for log_prob, value, ret in history:
-            diff = ret - value
-            actor_losses.append(-log_prob + diff)
-            critic_losses.append(
-                huber_loss(tf.expand_dims(value, 0), tf.expand_dims(ret, 0))
-            )
-        # backpropagation
-        loss_value = sum(actor_losses) + sum(critic_losses)
-        grads = tape.gradient(loss_value, model.trainable_variables)
-        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+def keypress_runner(lock):
+    """Function for handling keypresses."""
+    # print documentation
+    print("""\nPress one of the following keys to perform a command, followed by [ENTER].
 
-        # clear the loss and reward history
-        action_probs_history.clear()
-        critic_value_history.clear()
-        rewards_history.clear()
+        [SPACE] .. up
+        [X] ...... down
+        [A] ...... left
+        [D] ...... right
+        [W] ...... forward
+        [S] ...... backward
 
-    # log details
-    episode_count += 1
-    if episode_count % 10 == 0:
-        template = "running reward: {:.2f} at episode {}"
-        print(template.format(running_reward, episode_count))
+        [Q] ...... quit
+        [R] ...... reset world
+        [L] ...... land
 
-    if running_reward > 195: # condition to consider the task solved
-        print("Solved at episode {}!".format(episode_count))
-        break
+    """)
+    while True:
+        # check if quit has been triggered
+        lock.acquire()
+        if not run:
+            lock.release()
+            break
+        lock.release()
+        # read input
+        c = input("> ")
+        if (len(c) == 1):
+            # save input to queue
+            lock.acquire()
+            keypress_queue.append(c)
+            lock.release()
 
-            
 
-navigate(x=0, y=0, z=1, frame_id='body', auto_arm=True)
-# Wait for 5 seconds
-rospy.sleep(5)
-
-print(get_telemetry())
-set_attitude(roll=1.0, pitch=1.0, yaw=1.0, thrust=1.0)
-rospy.sleep(1)
-
-print('Fly forward 1 m')
-navigate(x=-3, y=0, z=0, frame_id='body')
-
-# Wait for 5 seconds
-rospy.sleep(5)
-
-print('Perform landing')
-land()
+ros_thread = threading.Thread(target=ros_runner, args=(lock,))
+keypress_thread = threading.Thread(target=keypress_runner, args=(lock,))
