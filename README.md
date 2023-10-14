@@ -125,8 +125,16 @@ Robotic Operating System (ROS). By following the steps here, you will
 have a simulation environment set up for the COEX Clover drone, and
 you will be able to have it perform basic maneuvers from the command line.
 
-First, please refer to [Using clover_vm for simulating Clover](FIXME) in order
-to properly set up a virtualized development environment.
+First, please refer to
+[Using clover_vm for simulating Clover](#using-clover_vm-for-simulating-clover)
+in order to properly set up a virtualized development environment.
+
+Assuming you have a working `clover_vm`, you can now clone this repository.
+
+```sh
+git clone https://ReadyResearcher-2023-24/SimonJonesArtifact.git
+```
+
 
 ## Supplementary Materials
 
