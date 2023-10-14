@@ -11,7 +11,7 @@ from tensorflow.keras import layers
 gamma = 0.99 # discount factor for past rewards
 epsilon = np.finfo(np.float32).eps.item() # smallest number such that 1.0 + eps != 1.0
 
-num_inputs = 4
+num_inputs = 9
 num_actions = 2
 num_hidden = 128
 
@@ -49,6 +49,7 @@ while True:
     episode_reward = 0
     with tf.GradientTape() as tape:
         for timestamp in range(1, max_steps_per_episode):
+            # get current state
             telemetry_info = get_telemetry()
             state = tf.convert_to_tensor([
                 telemetry_info.x,
@@ -61,7 +62,7 @@ while True:
                 telemetry_info.pitch,
                 telemetry_info.yaw
             ])
-            state = tf.exand_dims(state, 0)
+            state = tf.expand_dims(state, 0)
 
             # predict action probabilities and estimated future rewards
             # from environment state
@@ -80,11 +81,24 @@ while True:
 
             # apply the sampled action in our environment
             # FIXME: change attitude
-            # FIXME: calculate reward metric
-            reward = 0.0
+            set_attitude(
+                pitch=1.0,
+                roll=1.0, 
+                thrust=1.0,
+                yaw=1.0
+            )
+
+            telemetry_info = get_telemetry()
+            # get current distance from (0,0,1)
+            desired_pos = [0,0,1]
+            current_pos = [telemetry_info.x, telemetry_info.y, telemetry_info.z]
+            get_magnitude = lambda x: np.linalg.norm(x)
+            distance_from_desired_pos = get_magnitude(np.subtract(desired_pos, current_pos))
+            # reward is negative of the distance from the desired position
+            reward = -distance_from_desired_pos
             episode_reward += reward
 
-            # consider done if FIXME
+            # NOTE: have done metric?
             done = False
 
             if done:
