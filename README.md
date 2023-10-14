@@ -135,6 +135,42 @@ Assuming you have a working `clover_vm`, you can now clone this repository.
 git clone https://ReadyResearcher-2023-24/SimonJonesArtifact.git
 ```
 
+Now launch the Clover simulation. This will open a visual instance of Gazebo and
+a PX4 SITL instance (flight controller simulator) in the terminal.
+
+```sh
+roslaunch clover_simulation simulator.launch
+```
+
+![](images/gazebo_init.png)
+
+In a separate terminal, launch the `myflight.py` file from the repository you
+just cloned.
+
+```sh
+cd /repo/just/cloned
+python3 src/myflight.py
+```
+
+You should now see the following:
+
+```
+Press one of the following keys to perform a command, followed by [ENTER].
+
+        [SPACE] .. up
+        [X] ...... down
+        [A] ...... left
+        [D] ...... right
+        [W] ...... forward
+        [S] ...... backward
+
+        [Q] ...... quit
+        [R] ...... reset world
+        [L] ...... land
+```
+
+Play with these commands while paying attention to the Gazebo simulation window
+to see how the drone responds to input.
 
 ## Supplementary Materials
 
