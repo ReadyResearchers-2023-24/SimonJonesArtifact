@@ -1,8 +1,8 @@
+import rospy
 from clover import srv
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
-
-from threading import Thread
+import threading
 
 # initialize rospy flight node
 rospy.init_node('flight')
@@ -60,6 +60,7 @@ class DroneMovements:
 
 def ros_runner(lock):
     """Function for sending ros messages."""
+    global run
     while True:
         # check if quit has been triggered
         lock.acquire()
@@ -98,6 +99,7 @@ def ros_runner(lock):
 
 def keypress_runner(lock):
     """Function for handling keypresses."""
+    global run
     # print documentation
     print("""\nPress one of the following keys to perform a command, followed by [ENTER].
 
@@ -129,5 +131,8 @@ def keypress_runner(lock):
             lock.release()
 
 
-ros_thread = threading.Thread(target=ros_runner, args=(lock,))
-keypress_thread = threading.Thread(target=keypress_runner, args=(lock,))
+ros_thread = threading.Thread(target=ros_runner, args=(key_mutex,))
+keypress_thread = threading.Thread(target=keypress_runner, args=(key_mutex,))
+
+ros_thread.start()
+keypress_thread.start()
