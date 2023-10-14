@@ -1,5 +1,27 @@
 # Development of Quadcopter for Autonomous Navigation
 
+## Table of Contents
+
+* [Preface](#preface)
+  * [Preface - Introduction & Background](#preface---introduction--background)
+  * [Preface - Proposed Experimental Details](#preface---proposed-experimental-details)
+  * [Preface - Measure of Success](#preface---measure-of-success)
+  * [Preface - Conclusion](#preface---conclusion)
+* [Prototype](#prototype)
+* [Supplementary Materials](#supplementary-materials)
+  * [ROS2 Rolling Installation - Ubuntu 22.04](#ros2-rolling-installation---ubuntu-2204)
+  * [ROS Installation - NixOS](#ros-installation---nixos)
+  * [ROS1 Noetic Installation - Ubuntu 22.04](#ros1-noetic-installation---ubuntu-2204)
+  * [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204)
+  * [Using clover_vm for simulating Clover](#using-clover_vm-for-simulating-clover)
+    * [clover_vm - Setup](#clover_vm---setup)
+    * [clover_vm - General Usage](#clover_vm---general-usage)
+  * [Installing Docker - Ubuntu 22.04](#installing-docker---ubuntu-2204)
+  * [Miscellaneous](#miscellaneous)
+* [References](#references)
+
+## Preface
+
 Here I outline a project involving the development of a quadcopter
 capable of autonomous navigation. Additionally, I document how to set
 up a simulation environment for developing with
@@ -7,7 +29,7 @@ up a simulation environment for developing with
 this project. To skip to the simulation instructions, see
 [Prototype](#prototype).
 
-## Preface
+---
 
 Simon J. Jones  
 Daniel Willey, PhD  
