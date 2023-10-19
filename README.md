@@ -1,5 +1,27 @@
 # Development of Quadcopter for Autonomous Navigation
 
+## Table of Contents
+
+* [Preface](#preface)
+  * [Preface - Introduction & Background](#preface---introduction--background)
+  * [Preface - Proposed Experimental Details](#preface---proposed-experimental-details)
+  * [Preface - Measure of Success](#preface---measure-of-success)
+  * [Preface - Conclusion](#preface---conclusion)
+* [Prototype](#prototype)
+* [Supplementary Materials](#supplementary-materials)
+  * [ROS2 Rolling Installation - Ubuntu 22.04](#ros2-rolling-installation---ubuntu-2204)
+  * [ROS Installation - NixOS](#ros-installation---nixos)
+  * [ROS1 Noetic Installation - Ubuntu 22.04](#ros1-noetic-installation---ubuntu-2204)
+  * [Installing VirtualBox - Ubuntu 22.04](#installing-virtualbox---ubuntu-2204)
+  * [Using clover_vm for simulating Clover](#using-clover_vm-for-simulating-clover)
+    * [clover_vm - Setup](#clover_vm---setup)
+    * [clover_vm - General Usage](#clover_vm---general-usage)
+  * [Installing Docker - Ubuntu 22.04](#installing-docker---ubuntu-2204)
+  * [Miscellaneous](#miscellaneous)
+* [References](#references)
+
+## Preface
+
 Here I outline a project involving the development of a quadcopter
 capable of autonomous navigation. Additionally, I document how to set
 up a simulation environment for developing with
@@ -7,7 +29,7 @@ up a simulation environment for developing with
 this project. To skip to the simulation instructions, see
 [Prototype](#prototype).
 
-## Preface
+---
 
 Simon J. Jones  
 Daniel Willey, PhD  
@@ -135,6 +157,42 @@ Assuming you have a working `clover_vm`, you can now clone this repository.
 git clone https://ReadyResearcher-2023-24/SimonJonesArtifact.git
 ```
 
+Now launch the Clover simulation. This will open a visual instance of Gazebo and
+a PX4 SITL instance (flight controller simulator) in the terminal.
+
+```sh
+roslaunch clover_simulation simulator.launch
+```
+
+![](images/gazebo_init.png)
+
+In a separate terminal, launch the `myflight.py` file from the repository you
+just cloned.
+
+```sh
+cd /repo/just/cloned
+python3 src/myflight.py
+```
+
+You should now see the following:
+
+```
+Press one of the following keys to perform a command, followed by [ENTER].
+
+        [SPACE] .. up
+        [X] ...... down
+        [A] ...... left
+        [D] ...... right
+        [W] ...... forward
+        [S] ...... backward
+
+        [Q] ...... quit
+        [R] ...... reset world
+        [L] ...... land
+```
+
+Play with these commands while paying attention to the Gazebo simulation window
+to see how the drone responds to input.
 
 ## Supplementary Materials
 
