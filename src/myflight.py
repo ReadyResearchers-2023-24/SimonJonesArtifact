@@ -47,7 +47,7 @@ class DroneMovements:
 
     def backward():
         """Move backward one meter."""
-        navigate(x=0, y=-1, z=1, frame_id='body', auto_arm=True)
+        navigate(x=0, y=-1, z=0, frame_id='body', auto_arm=True)
 
     def reset():
         """Reset world."""
@@ -62,8 +62,9 @@ def ros_runner(lock):
     """Function for sending ros messages."""
     global run
     while True:
-        # check if quit has been triggered
-        lock.acquire()
+        # spinlock: check if quit has been triggered
+        if not lock.acquire(blocking = False):
+            continue
         if not run:
             lock.release()
             break
@@ -73,10 +74,8 @@ def ros_runner(lock):
             # release the lock and let keyboard events be processed
             lock.release()
             # process commands
-            if (next_keypress.lower() == "q"):
-                lock.acquire()
-                run = False
-                lock.release()
+            if (False):
+                pass
             elif (next_keypress.lower() == " "):
                 DroneMovements.up()
             elif (next_keypress.lower() == "x"):
@@ -117,16 +116,15 @@ def keypress_runner(lock):
     """)
     while True:
         # check if quit has been triggered
-        lock.acquire()
-        if not run:
-            lock.release()
-            break
-        lock.release()
         # read input
         c = input("> ")
         if (len(c) == 1):
             # save input to queue
             lock.acquire()
+            if c == "q":
+                run = False
+                lock.release()
+                break
             keypress_queue.append(c)
             lock.release()
 
