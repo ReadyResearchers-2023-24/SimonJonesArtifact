@@ -34,6 +34,8 @@ thrust_max = 1000.0
 yaw_min = np.pi
 yaw_max = np.pi
 
+time_step_ms = 100
+
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
         self.theta = theta
@@ -205,18 +207,49 @@ def policy(state, noise_object):
 
     return [np.squeeze(legal_action)]
 
+def episode_calculate_reward_metric(telemetry_dict):
+    # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
+    desired_pos = {"x": 0, "y": 1, "z": 0}
+    distance_from_desired_pos = (
+        (telemetry_dict["x"] - desired_pos["x"]) ** 2
+        + (telemetry_dict["y"] - desired_pos["y"]) ** 2
+        + (telemetry_dict["z"] - desired_pos["z"]) ** 2
+    ) ** (0.5)
+    reward = -distance_from_desired_pos
+    return reward
+
+def episode_calculate_if_done(telemetry_dict):
+    # NOTE: temporary for now, done if 10m away from goal
+    desired_pos = {"x": 0, "y": 1, "z": 0}
+    distance_from_desired_pos = (
+        (telemetry_dict["x"] - desired_pos["x"]) ** 2
+        + (telemetry_dict["y"] - desired_pos["y"]) ** 2
+        + (telemetry_dict["z"] - desired_pos["z"]) ** 2
+    ) ** (0.5)
+    done = distance_from_desired_pos > 10.0
+    return done
+
 def episode_reset_and_grab_state():
     reset_world()
     # FIXME: prev_state = env.reset()
-    prev_state = list(filter(
-        lambda item: item[0] in state_keys,
-        get_telemetry().items()
-    ))
-    prev_state = list(map(lambda item: item[1], prev_state))
-    return prev_state
+    telemetry_dict = get_telemetry()
+    # map state keys to pull out parts of the state
+    # that we want to know from telemetry
+    state = list(map(lambda key: telemetry_dict[key], state_keys))
+    return state
 
 def episode_take_action(action):
-    return (state, reward, done, info)
+    # FIXME: is action iterable?
+    # zip action keys with action numbers calculated from the policy
+    # into a dict to provide to `set_attitude`
+    action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
+    set_attitude(**action_dict)
+    # FIXME: wait time_step and get state
+    telemetry_dict = get_telemetry()
+    state = list(map(lambda key: telemetry_dict[key], state_keys))
+    reward = episode_calculate_reward_metric(telemetry_dict)
+    done = episode_calculate_if_done(telemetry_dict)
+    return (state, reward, done)
 
 
 std_dev = 0.2
@@ -258,13 +291,16 @@ for ep in range(total_episodes):
     prev_state = episode_reset_and_grab_state()
     episodic_reward = 0
 
-    while True:
+    # set loop rate of 10Hz
+    # this is handled by ROS to ensure consistent steps
+    r = rospy.Rate(10)
+    while not rospy.is_shutdown():
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
         action = policy(tf_prev_state, ou_noise)
         # Recieve state and reward from environment.
         # FIXME: state, reward, done, info = env.step(action)
-        state, reward, done, info = episode_take_action(action)
+        state, reward, done = episode_take_action(action)
 
         buffer.record((prev_state, action, reward, state))
         episodic_reward += reward
@@ -278,6 +314,8 @@ for ep in range(total_episodes):
             break
 
         prev_state = state
+        # sleep governed by rospy.Rate to ensure consistent loop intervals
+        r.sleep()
 
     ep_reward_list.append(episodic_reward)
 
