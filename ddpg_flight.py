@@ -21,8 +21,10 @@ set_attitude = rospy.ServiceProxy('set_attitude', srv.SetAttitude)
 set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
-num_states = len(["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"])
-num_actions = len(["pitch", "roll", "thrust", "yaw"])
+state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
+action_keys = ["pitch", "roll", "thrust", "yaw"]
+num_states = len(state_keys)
+num_actions = len(action_keys)
 pitch_min = np.pi
 pitch_max = np.pi
 roll_min = np.pi
@@ -203,6 +205,19 @@ def policy(state, noise_object):
 
     return [np.squeeze(legal_action)]
 
+def episode_reset_and_grab_state():
+    reset_world()
+    # FIXME: prev_state = env.reset()
+    prev_state = list(filter(
+        lambda item: item[0] in state_keys,
+        get_telemetry().items()
+    ))
+    prev_state = list(map(lambda item: item[1], prev_state))
+    return prev_state
+
+def episode_take_action(action):
+    return (state, reward, done, info)
+
 
 std_dev = 0.2
 ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
@@ -240,19 +255,16 @@ avg_reward_list = []
 # Takes about 4 min to train
 for ep in range(total_episodes):
 
-    prev_state = env.reset()
+    prev_state = episode_reset_and_grab_state()
     episodic_reward = 0
 
     while True:
-        # Uncomment this to see the Actor in action
-        # But not in a python notebook.
-        # env.render()
-
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
         action = policy(tf_prev_state, ou_noise)
         # Recieve state and reward from environment.
-        state, reward, done, info = env.step(action)
+        # FIXME: state, reward, done, info = env.step(action)
+        state, reward, done, info = episode_take_action(action)
 
         buffer.record((prev_state, action, reward, state))
         episodic_reward += reward
