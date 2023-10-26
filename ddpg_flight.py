@@ -207,24 +207,24 @@ def policy(state, noise_object):
 
     return [np.squeeze(legal_action)]
 
-def episode_calculate_reward_metric(telemetry_dict):
+def episode_calculate_reward_metric(telemetry_class):
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 1, "z": 0}
     distance_from_desired_pos = (
-        (telemetry_dict["x"] - desired_pos["x"]) ** 2
-        + (telemetry_dict["y"] - desired_pos["y"]) ** 2
-        + (telemetry_dict["z"] - desired_pos["z"]) ** 2
+        (telemetry_class.x - desired_pos["x"]) ** 2
+        + (telemetry_class.y - desired_pos["y"]) ** 2
+        + (telemetry_class.z - desired_pos["z"]) ** 2
     ) ** (0.5)
     reward = -distance_from_desired_pos
     return reward
 
-def episode_calculate_if_done(telemetry_dict):
+def episode_calculate_if_done(telemetry_class):
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0, "y": 1, "z": 0}
     distance_from_desired_pos = (
-        (telemetry_dict["x"] - desired_pos["x"]) ** 2
-        + (telemetry_dict["y"] - desired_pos["y"]) ** 2
-        + (telemetry_dict["z"] - desired_pos["z"]) ** 2
+        (telemetry_class.x - desired_pos["x"]) ** 2
+        + (telemetry_class.y - desired_pos["y"]) ** 2
+        + (telemetry_class.z - desired_pos["z"]) ** 2
     ) ** (0.5)
     done = distance_from_desired_pos > 10.0
     return done
@@ -232,10 +232,20 @@ def episode_calculate_if_done(telemetry_dict):
 def episode_reset_and_grab_state():
     reset_world()
     # FIXME: prev_state = env.reset()
-    telemetry_dict = get_telemetry()
-    # map state keys to pull out parts of the state
+    telemetry_class = get_telemetry()
+    # pull out parts of the state
     # that we want to know from telemetry
-    state = list(map(lambda key: telemetry_dict[key], state_keys))
+    state = [
+        telemetry_class.x,
+        telemetry_class.y,
+        telemetry_class.z,
+        telemetry_class.vx,
+        telemetry_class.vy,
+        telemetry_class.vz,
+        telemetry_class.roll,
+        telemetry_class.pitch,
+        telemetry_class.yaw
+    ]
     return state
 
 def episode_take_action(action):
@@ -245,10 +255,22 @@ def episode_take_action(action):
     action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
     set_attitude(**action_dict)
     # FIXME: wait time_step and get state
-    telemetry_dict = get_telemetry()
-    state = list(map(lambda key: telemetry_dict[key], state_keys))
-    reward = episode_calculate_reward_metric(telemetry_dict)
-    done = episode_calculate_if_done(telemetry_dict)
+    telemetry_class = get_telemetry()
+    # pull out parts of the state
+    # that we want to know from telemetry
+    state = [
+        telemetry_class.x,
+        telemetry_class.y,
+        telemetry_class.z,
+        telemetry_class.vx,
+        telemetry_class.vy,
+        telemetry_class.vz,
+        telemetry_class.roll,
+        telemetry_class.pitch,
+        telemetry_class.yaw
+    ]
+    reward = episode_calculate_reward_metric(telemetry_class)
+    done = episode_calculate_if_done(telemetry_class)
     return (state, reward, done)
 
 
