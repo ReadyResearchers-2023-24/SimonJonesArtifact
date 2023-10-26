@@ -161,6 +161,7 @@ def get_actor():
     out = layers.Dense(256, activation="relu")(out)
     outputs = layers.Dense(num_actions, activation="tanh", kernel_initializer=last_init)(out)
 
+    # FIXME: activation="sigmoid" for thrust function. There cannot be negative thrust
     # scale the outputs, given that they're coming from a (-1, 1) basis
     output_scale = tf.convert_to_tensor([pitch_max, roll_max, thrust_max, yaw_max])
     outputs = tf.math.multiply(outputs, output_scale)
