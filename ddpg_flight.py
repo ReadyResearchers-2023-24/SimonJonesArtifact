@@ -252,7 +252,7 @@ def episode_take_action(action):
     # FIXME: is action iterable?
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
-    action_dict = dict(map(lambda i: (action_keys[i], np.flatten(action)[i]), range(len(action_keys))))
+    action_dict = dict(map(lambda i: (action_keys[i], action[0].flatten()[i]), range(len(action_keys))))
     set_attitude(**action_dict)
     # FIXME: wait time_step and get state
     telemetry_class = get_telemetry()
