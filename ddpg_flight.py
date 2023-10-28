@@ -1,5 +1,6 @@
 import rospy
 import numpy as np
+import math
 import tensorflow as tf
 
 from clover import srv
@@ -218,13 +219,13 @@ def policy(state, noise_object):
 
 def episode_calculate_reward_metric(telemetry_class):
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
-    desired_pos = {"x": 0, "y": 1, "z": 0}
+    desired_pos = {"x": 0, "y": 0, "z": 1}
     distance_from_desired_pos = (
         (telemetry_class.x - desired_pos["x"]) ** 2
         + (telemetry_class.y - desired_pos["y"]) ** 2
         + (telemetry_class.z - desired_pos["z"]) ** 2
-    ) ** (1/3)
-    reward = -distance_from_desired_pos
+    ) ** (1/2)
+    reward = -distance_from_desired_pos - (1 - math.e ** (-(telemetry_class.z - 1) ** 2))
     return reward
 
 def episode_calculate_if_done(telemetry_class):
@@ -234,7 +235,7 @@ def episode_calculate_if_done(telemetry_class):
         (telemetry_class.x - desired_pos["x"]) ** 2
         + (telemetry_class.y - desired_pos["y"]) ** 2
         + (telemetry_class.z - desired_pos["z"]) ** 2
-    ) ** (1/3)
+    ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
     done = distance_from_desired_pos > 10.0
     return done
@@ -259,7 +260,7 @@ def episode_reset_and_grab_state():
     return state
 
 def episode_take_action(action):
-    # FIXME: is action iterable?
+    # FIXME: lag in clover ROS causes this to not work
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
     action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
@@ -333,6 +334,11 @@ for ep in range(total_episodes):
         # Recieve state and reward from environment.
         # FIXME: state, reward, done, info = env.step(action)
         state, reward, done = episode_take_action(action)
+
+        # skip if reward is not a number (this is ROS clover's fault)
+        if (math.isnan(reward)):
+            print("nan reward detected; skipping...")
+            continue
 
         buffer.record((prev_state, action, reward, state))
         episodic_reward += reward
