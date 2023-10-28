@@ -153,16 +153,25 @@ def update_target(target_weights, weights, tau):
         a.assign(b * tau + a * (1 - tau))
 
 def get_actor():
-    # Initialize weights between -3e-3 and 3-e3
-    last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
+    # Initialize weights
+    last_init_tanh = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
+    last_init_sigmoid = tf.random_uniform_initializer(minval=0, maxval=0.003)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
     out = layers.Dense(256, activation="relu")(out)
-    outputs = layers.Dense(num_actions, activation="tanh", kernel_initializer=last_init)(out)
+    # initialize tanh outputs for actions with range [-x,+x]
+    # initialize sigmoid outputs for actions with range [0,+x]
+    outputs_list = [
+        layers.Dense(2, activation="tanh", kernel_initializer=last_init_tanh)(out),
+        layers.Dense(1, activation="sigmoid", kernel_initializer=last_init_sigmoid)(out),
+        layers.Dense(1, activation="tanh", kernel_initializer=last_init_tanh)(out),
+    ]
+    assert len(outputs_list) == len(num_actions)
+    outputs = layers.Concatenate(outputs_list)
 
-    # FIXME: activation="sigmoid" for thrust function. There cannot be negative thrust
-    # scale the outputs, given that they're coming from a (-1, 1) basis
+    # scale the outputs, given that they're coming from
+    # the basis of an activation function
     output_scale = tf.convert_to_tensor([pitch_max, roll_max, thrust_max, yaw_max])
     outputs = tf.math.multiply(outputs, output_scale)
     model = tf.keras.Model(inputs, outputs)
@@ -206,6 +215,7 @@ def policy(state, noise_object):
     # We make sure action is within bounds
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
 
+    # FIXME: this greatly confuses me
     return [np.squeeze(legal_action)]
 
 def episode_calculate_reward_metric(telemetry_class):
