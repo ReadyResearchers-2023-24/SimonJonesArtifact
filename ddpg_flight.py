@@ -30,7 +30,7 @@ pitch_max = np.pi
 roll_min = np.pi
 roll_max = np.pi
 thrust_min = 0.0
-thrust_max = 1000.0
+thrust_max = 1.0
 yaw_min = np.pi
 yaw_max = np.pi
 
@@ -167,8 +167,7 @@ def get_actor():
         layers.Dense(1, activation="sigmoid", kernel_initializer=last_init_sigmoid)(out),
         layers.Dense(1, activation="tanh", kernel_initializer=last_init_tanh)(out),
     ]
-    assert len(outputs_list) == len(num_actions)
-    outputs = layers.Concatenate(outputs_list)
+    outputs = layers.concatenate(outputs_list)
 
     # scale the outputs, given that they're coming from
     # the basis of an activation function
@@ -204,11 +203,10 @@ def policy(state, noise_object):
     sampled_actions = tf.squeeze(actor_model(state))
 
     # create tensor with noise
-    noise_array = [noise_object() for i in range(num_actions)]
-    noise = tf.constant(noise_array)
+    noise_array = noise_object()
 
     # Adding noise to action
-    sampled_actions = np.add(sampled_actions.numpy(), noise.numpy())
+    sampled_actions = sampled_actions.numpy() + noise_array
     lower_bounds = [pitch_min, roll_min, thrust_min, yaw_min]
     upper_bounds = [pitch_max, roll_max, thrust_max, yaw_max]
 
@@ -216,7 +214,7 @@ def policy(state, noise_object):
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
 
     # FIXME: this greatly confuses me
-    return [np.squeeze(legal_action)]
+    return np.squeeze(legal_action)
 
 def episode_calculate_reward_metric(telemetry_class):
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
@@ -225,18 +223,19 @@ def episode_calculate_reward_metric(telemetry_class):
         (telemetry_class.x - desired_pos["x"]) ** 2
         + (telemetry_class.y - desired_pos["y"]) ** 2
         + (telemetry_class.z - desired_pos["z"]) ** 2
-    ) ** (0.5)
+    ) ** (1/3)
     reward = -distance_from_desired_pos
     return reward
 
 def episode_calculate_if_done(telemetry_class):
     # NOTE: temporary for now, done if 10m away from goal
-    desired_pos = {"x": 0, "y": 1, "z": 0}
+    desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
     distance_from_desired_pos = (
         (telemetry_class.x - desired_pos["x"]) ** 2
         + (telemetry_class.y - desired_pos["y"]) ** 2
         + (telemetry_class.z - desired_pos["z"]) ** 2
-    ) ** (0.5)
+    ) ** (1/3)
+    print("distance from desired position: ", distance_from_desired_pos)
     done = distance_from_desired_pos > 10.0
     return done
 
@@ -263,8 +262,8 @@ def episode_take_action(action):
     # FIXME: is action iterable?
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
-    action_dict = dict(map(lambda i: (action_keys[i], action[0].flatten()[i]), range(len(action_keys))))
-    set_attitude(**action_dict)
+    action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
+    set_attitude(auto_arm=True, **action_dict)
     # FIXME: wait time_step and get state
     telemetry_class = get_telemetry()
     # pull out parts of the state
@@ -286,7 +285,7 @@ def episode_take_action(action):
 
 
 std_dev = 0.2
-ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
+ou_noise = OUActionNoise(mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions))
 
 actor_model = get_actor()
 critic_model = get_critic()
@@ -305,7 +304,7 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-total_episodes = 100
+total_episodes = 200
 # Discount factor for future rewards
 gamma = 0.99
 # Used to update target networks
