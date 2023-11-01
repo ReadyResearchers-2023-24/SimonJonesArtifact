@@ -4,10 +4,14 @@ import math
 import tensorflow as tf
 
 from clover import srv
+from threading import Lock
+from geometry_msgs.msg import Pose
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
 from tensorflow import keras
 from tensorflow.keras import layers
+
+local_pos_mutex = Lock()
 
 rospy.init_node('flight')
 
@@ -23,6 +27,7 @@ set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
 state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
+state = [0.0 for i in state_keys]
 action_keys = ["pitch", "roll", "thrust", "yaw"]
 num_states = len(state_keys)
 num_actions = len(action_keys)
@@ -36,6 +41,24 @@ yaw_min = np.pi
 yaw_max = np.pi
 
 time_step_ms = 100
+
+def local_position_callback(local_position):
+    mutex_acquired = local_pos_mutex.acquire(blocking=False)
+    if mutex_acquired:
+        state[state_keys.index("x")] = local_position.position.x
+        state[state_keys.index("y")] = local_position.position.y
+        state[state_keys.index("z")] = local_position.position.z
+        print(state)
+        local_pos_mutex.release()
+
+def local_position_listener():
+    rospy.init_node('local_position_listener', anonymous=True)
+    # subscribe to mavros's pose topic
+    rospy.Subscriber('/mavros/local_position/pose', Pose, local_position_callback)
+    rospy.spin()
+
+local_position_listener()
+print("[TRACE] after listener")
 
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
