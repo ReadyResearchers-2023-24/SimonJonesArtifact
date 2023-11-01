@@ -4,7 +4,7 @@ import math
 import tensorflow as tf
 
 from clover import srv
-from threading import Lock
+from threading import Lock, Thread
 from geometry_msgs.msg import Pose
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
@@ -52,13 +52,12 @@ def local_position_callback(local_position):
         local_pos_mutex.release()
 
 def local_position_listener():
-    rospy.init_node('local_position_listener', anonymous=True)
     # subscribe to mavros's pose topic
     rospy.Subscriber('/mavros/local_position/pose', Pose, local_position_callback)
     rospy.spin()
 
-local_position_listener()
-print("[TRACE] after listener")
+local_position_thread = Thread(target=local_position_listener, args=())
+local_position_thread.start()
 
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
@@ -241,38 +240,45 @@ def policy(state, noise_object):
     return np.squeeze(legal_action)
 
 def episode_calculate_reward_metric(telemetry_class):
+    global state, local_pos_mutex
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
+    local_pos_mutex.acquire()
     distance_from_desired_pos = (
-        (telemetry_class.x - desired_pos["x"]) ** 2
-        + (telemetry_class.y - desired_pos["y"]) ** 2
-        + (telemetry_class.z - desired_pos["z"]) ** 2
+        (state[0] - desired_pos["x"]) ** 2
+        + (state[1] - desired_pos["y"]) ** 2
+        + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
-    reward = -distance_from_desired_pos - (1 - math.e ** (-(telemetry_class.z - 1) ** 2))
+    reward = -distance_from_desired_pos - (1 - math.e ** (-(state[2] - 1) ** 2))
+    local_pos_mutex.release()
     return reward
 
 def episode_calculate_if_done(telemetry_class):
+    global state, local_pos_mutex
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
+    local_pos_mutex.acquire()
     distance_from_desired_pos = (
-        (telemetry_class.x - desired_pos["x"]) ** 2
-        + (telemetry_class.y - desired_pos["y"]) ** 2
-        + (telemetry_class.z - desired_pos["z"]) ** 2
+        (state[0] - desired_pos["x"]) ** 2
+        + (state[1] - desired_pos["y"]) ** 2
+        + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
+    local_pos_mutex.release()
     done = distance_from_desired_pos > 10.0
     return done
 
 def episode_reset_and_grab_state():
+    global state, local_pos_mutex
     reset_world()
     # FIXME: prev_state = env.reset()
     telemetry_class = get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
     state = [
-        telemetry_class.x,
-        telemetry_class.y,
-        telemetry_class.z,
+        state[0],
+        state[1],
+        state[2],
         telemetry_class.vx,
         telemetry_class.vy,
         telemetry_class.vz,
@@ -392,3 +398,5 @@ critic_model.save_weights("ddpg_critic.h5")
 
 target_actor.save_weights("ddpg_target_actor.h5")
 target_critic.save_weights("ddpg_target_critic.h5")
+
+local_position_thread.join()
