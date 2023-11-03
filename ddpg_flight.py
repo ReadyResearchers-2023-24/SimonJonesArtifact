@@ -1,11 +1,12 @@
 import rospy
 import numpy as np
 import math
+import copy
 import tensorflow as tf
 
 from clover import srv
 from threading import Lock, Thread
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
 from tensorflow import keras
@@ -45,15 +46,14 @@ time_step_ms = 100
 def local_position_callback(local_position):
     mutex_acquired = local_pos_mutex.acquire(blocking=False)
     if mutex_acquired:
-        state[state_keys.index("x")] = local_position.position.x
-        state[state_keys.index("y")] = local_position.position.y
-        state[state_keys.index("z")] = local_position.position.z
-        print(state)
+        state[state_keys.index("x")] = local_position.pose.position.x
+        state[state_keys.index("y")] = local_position.pose.position.y
+        state[state_keys.index("z")] = local_position.pose.position.z
         local_pos_mutex.release()
 
 def local_position_listener():
     # subscribe to mavros's pose topic
-    rospy.Subscriber('/mavros/local_position/pose', Pose, local_position_callback)
+    rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
     rospy.spin()
 
 local_position_thread = Thread(target=local_position_listener, args=())
@@ -236,7 +236,6 @@ def policy(state, noise_object):
     # We make sure action is within bounds
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
 
-    # FIXME: this greatly confuses me
     return np.squeeze(legal_action)
 
 def episode_calculate_reward_metric(telemetry_class):
@@ -275,10 +274,11 @@ def episode_reset_and_grab_state():
     telemetry_class = get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    state = [
-        state[0],
-        state[1],
-        state[2],
+    local_pos_mutex.acquire()
+    local_state = [
+        copy.deepcopy(state[0]),
+        copy.deepcopy(state[1]),
+        copy.deepcopy(state[2]),
         telemetry_class.vx,
         telemetry_class.vy,
         telemetry_class.vz,
@@ -286,9 +286,11 @@ def episode_reset_and_grab_state():
         telemetry_class.pitch,
         telemetry_class.yaw
     ]
-    return state
+    local_pos_mutex.release()
+    return local_state
 
 def episode_take_action(action):
+    global state
     # FIXME: lag in clover ROS causes this to not work
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
@@ -298,10 +300,11 @@ def episode_take_action(action):
     telemetry_class = get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    state = [
-        telemetry_class.x,
-        telemetry_class.y,
-        telemetry_class.z,
+    local_pos_mutex.acquire()
+    local_state = [
+        copy.deepcopy(state[0]),
+        copy.deepcopy(state[1]),
+        copy.deepcopy(state[2]),
         telemetry_class.vx,
         telemetry_class.vy,
         telemetry_class.vz,
@@ -309,9 +312,10 @@ def episode_take_action(action):
         telemetry_class.pitch,
         telemetry_class.yaw
     ]
+    local_pos_mutex.release()
     reward = episode_calculate_reward_metric(telemetry_class)
     done = episode_calculate_if_done(telemetry_class)
-    return (state, reward, done)
+    return (local_state, reward, done)
 
 
 std_dev = 0.2
@@ -362,14 +366,14 @@ for ep in range(total_episodes):
         action = policy(tf_prev_state, ou_noise)
         # Recieve state and reward from environment.
         # FIXME: state, reward, done, info = env.step(action)
-        state, reward, done = episode_take_action(action)
+        local_state, reward, done = episode_take_action(action)
 
         # skip if reward is not a number (this is ROS clover's fault)
         if (math.isnan(reward)):
             print("nan reward detected; skipping...")
             continue
 
-        buffer.record((prev_state, action, reward, state))
+        buffer.record((prev_state, action, reward, local_state))
         episodic_reward += reward
 
         buffer.learn()
@@ -380,7 +384,7 @@ for ep in range(total_episodes):
         if done:
             break
 
-        prev_state = state
+        prev_state = local_state
         # sleep governed by rospy.Rate to ensure consistent loop intervals
         r.sleep()
 
