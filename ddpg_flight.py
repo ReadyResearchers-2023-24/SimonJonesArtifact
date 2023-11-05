@@ -269,7 +269,9 @@ def episode_calculate_if_done(telemetry_class):
 
 def episode_reset_and_grab_state():
     global state, local_pos_mutex
-    reset_world()
+    # 'failsafe' and return to home
+    # mavlink does not jive with gazebo's hard reset
+    navigate(x=0, y=0, z=0)
     # FIXME: prev_state = env.reset()
     telemetry_class = get_telemetry()
     # pull out parts of the state
