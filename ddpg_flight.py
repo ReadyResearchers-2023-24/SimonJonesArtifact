@@ -1,4 +1,5 @@
 import rospy
+import roslaunch
 import numpy as np
 import math
 import copy
@@ -17,6 +18,9 @@ local_pos_mutex = Lock()
 
 rospy.init_node('flight')
 
+# initialize method for starting/stopping other nodes
+# FIXME: this may be in place of a launch file
+ros_node_launch = roslaunch.scriptapi.ROSLaunch()
 rospy.wait_for_service('/gazebo/reset_world')
 arming = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
 reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
@@ -44,6 +48,9 @@ yaw_min = np.pi
 yaw_max = np.pi
 
 time_step_ms = 100
+
+# FIXME: copy parts of launch file from clover
+# repository and do it programmatically aquí
 
 def local_position_callback(local_position):
     mutex_acquired = False
