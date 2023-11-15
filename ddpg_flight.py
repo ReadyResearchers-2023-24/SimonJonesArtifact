@@ -9,6 +9,7 @@ from threading import Lock, Thread
 from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
+from mavros_msgs.srv import CommandBool
 from tensorflow import keras
 from tensorflow.keras import layers
 
@@ -17,6 +18,7 @@ local_pos_mutex = Lock()
 rospy.init_node('flight')
 
 rospy.wait_for_service('/gazebo/reset_world')
+arming = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
 reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
 get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
 navigate = rospy.ServiceProxy('navigate', srv.Navigate)
@@ -44,12 +46,13 @@ yaw_max = np.pi
 time_step_ms = 100
 
 def local_position_callback(local_position):
-    mutex_acquired = local_pos_mutex.acquire(blocking=False)
-    if mutex_acquired:
-        state[state_keys.index("x")] = local_position.pose.position.x
-        state[state_keys.index("y")] = local_position.pose.position.y
-        state[state_keys.index("z")] = local_position.pose.position.z
-        local_pos_mutex.release()
+    mutex_acquired = False
+    while not mutex_acquired:
+        mutex_acquired = local_pos_mutex.acquire(blocking=False)
+    state[state_keys.index("x")] = local_position.pose.position.x
+    state[state_keys.index("y")] = local_position.pose.position.y
+    state[state_keys.index("z")] = local_position.pose.position.z
+    local_pos_mutex.release()
 
 def local_position_listener():
     # subscribe to mavros's pose topic
@@ -178,7 +181,7 @@ def update_target(target_weights, weights, tau):
 def get_actor():
     # Initialize weights
     last_init_tanh = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
-    last_init_sigmoid = tf.random_uniform_initializer(minval=0, maxval=0.003)
+    last_init_sigmoid = tf.random_uniform_initializer(minval=0.5, maxval=1.0)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
@@ -271,7 +274,10 @@ def episode_reset_and_grab_state():
     global state, local_pos_mutex
     # 'failsafe' and return to home
     # mavlink does not jive with gazebo's hard reset
+    print("resetting position...")
     navigate(x=0, y=0, z=0)
+    rospy.sleep(10)
+    print("COMPLETE")
     # FIXME: prev_state = env.reset()
     telemetry_class = get_telemetry()
     # pull out parts of the state
