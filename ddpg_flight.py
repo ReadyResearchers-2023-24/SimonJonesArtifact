@@ -4,6 +4,7 @@ import numpy as np
 import math
 import copy
 import tensorflow as tf
+import simulation_nodes
 
 from clover import srv
 from threading import Lock, Thread
@@ -16,21 +17,6 @@ from tensorflow.keras import layers
 local_pos_mutex = Lock()
 
 rospy.init_node('flight')
-
-# initialize method for starting/stopping other nodes
-# FIXME: this may be in place of a launch file
-ros_node_launch = roslaunch.scriptapi.ROSLaunch()
-rospy.wait_for_service('/gazebo/reset_world')
-arming = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
-reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
-navigate = rospy.ServiceProxy('navigate', srv.Navigate)
-navigate_global = rospy.ServiceProxy('navigate_global', srv.NavigateGlobal)
-set_position = rospy.ServiceProxy('set_position', srv.SetPosition)
-set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
-set_attitude = rospy.ServiceProxy('set_attitude', srv.SetAttitude)
-set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
-land = rospy.ServiceProxy('land', Trigger)
 
 state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
 state = [0.0 for i in state_keys]
@@ -48,9 +34,6 @@ yaw_max = np.pi
 
 time_step_ms = 100
 
-# FIXME: copy parts of launch file from clover
-# repository and do it programmatically aquí
-
 def local_position_callback(local_position):
     mutex_acquired = False
     while not mutex_acquired:
@@ -64,6 +47,7 @@ def local_position_listener():
     # subscribe to mavros's pose topic
     rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
     rospy.spin()
+
 
 local_position_thread = Thread(target=local_position_listener, args=())
 local_position_thread.start()
