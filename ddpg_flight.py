@@ -11,7 +11,6 @@ from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Trigger
 from std_srvs.srv import Empty
 from mavros_msgs.srv import CommandBool
-from tensorflow import keras
 from tensorflow.keras import layers
 
 local_pos_mutex = Lock()
