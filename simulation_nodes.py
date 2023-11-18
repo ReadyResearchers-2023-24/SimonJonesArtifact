@@ -66,18 +66,3 @@ def shutdown_clover_model():
     else:
         clover_model_launch.shutdown()
         rospy.loginfo("started clover_model")
-
-def set_up_service_proxies():
-    rospy.wait_for_service('/gazebo/reset_world')
-    arming = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
-    reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-    get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
-    navigate = rospy.ServiceProxy('navigate', srv.Navigate)
-    navigate_global = rospy.ServiceProxy('navigate_global', srv.NavigateGlobal)
-    set_position = rospy.ServiceProxy('set_position', srv.SetPosition)
-    set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
-    set_attitude = rospy.ServiceProxy('set_attitude', srv.SetAttitude)
-    set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
-    land = rospy.ServiceProxy('land', Trigger)
-
-# FIXME: create static class for this

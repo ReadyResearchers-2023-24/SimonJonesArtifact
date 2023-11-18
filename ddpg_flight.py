@@ -5,14 +5,15 @@ import math
 import copy
 import tensorflow as tf
 import simulation_nodes
+import service_proxies
 
 from clover import srv
-from threading import Lock, Thread
 from geometry_msgs.msg import PoseStamped
-from std_srvs.srv import Trigger
-from std_srvs.srv import Empty
 from mavros_msgs.srv import CommandBool
+from std_srvs.srv import Empty
+from std_srvs.srv import Trigger
 from tensorflow.keras import layers
+from threading import Lock, Thread
 
 local_pos_mutex = Lock()
 
@@ -315,7 +316,6 @@ def episode_take_action(action):
     done = episode_calculate_if_done(telemetry_class)
     return (local_state, reward, done)
 
-
 std_dev = 0.2
 ou_noise = OUActionNoise(mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions))
 
@@ -348,6 +348,13 @@ buffer = Buffer(50000, 64)
 ep_reward_list = []
 # To store average reward history of last few episodes
 avg_reward_list = []
+
+# set up ROS related handles
+service_proxies.init()
+simulation_nodes.launch_px4()
+simulation_nodes.launch_gazebo()
+simulation_nodes.launch_clover_services()
+simulation_nodes.launch_clover_model()
 
 # Takes about 4 min to train
 for ep in range(total_episodes):
