@@ -345,11 +345,11 @@ ep_reward_list = []
 avg_reward_list = []
 
 # set up ROS related handles
-service_proxies.init()
 simulation_nodes.launch_px4()
 simulation_nodes.launch_gazebo()
 simulation_nodes.launch_clover_services()
 simulation_nodes.launch_clover_model()
+service_proxies.init()
 
 # Takes about 4 min to train
 for ep in range(total_episodes):
