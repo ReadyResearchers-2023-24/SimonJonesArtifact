@@ -1,5 +1,4 @@
 import rospy
-import roslaunch
 import numpy as np
 import math
 import copy
@@ -7,11 +6,7 @@ import tensorflow as tf
 import simulation_nodes
 import service_proxies
 
-from clover import srv
 from geometry_msgs.msg import PoseStamped
-from mavros_msgs.srv import CommandBool
-from std_srvs.srv import Empty
-from std_srvs.srv import Trigger
 from tensorflow.keras import layers
 from threading import Lock, Thread
 
