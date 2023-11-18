@@ -267,6 +267,12 @@ def episode_reset_and_grab_state():
     # mavlink does not jive with gazebo's hard reset
     print("resetting position...")
     navigate(x=0, y=0, z=0)
+    # wait until position is reset
+    while True:
+        local_pos_mutex.acquire()
+        if copy.deepcopy(state[0]) < 1 and copy.deepcopy(state[1]) < 1 and copy.deepcopy(state[2]) < 1:
+            break
+        local_pos_mutex.release()
     rospy.sleep(10)
     print("COMPLETE")
     # FIXME: prev_state = env.reset()
