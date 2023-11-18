@@ -258,20 +258,14 @@ def episode_calculate_if_done(telemetry_class):
 
 def episode_reset_and_grab_state():
     global state, local_pos_mutex
-    # 'failsafe' and return to home
-    # mavlink does not jive with gazebo's hard reset
-    print("resetting position...")
-    navigate(x=0, y=0, z=0)
     # wait until position is reset
-    while True:
-        local_pos_mutex.acquire()
-        if copy.deepcopy(state[0]) < 1 and copy.deepcopy(state[1]) < 1 and copy.deepcopy(state[2]) < 1:
-            break
-        local_pos_mutex.release()
-    rospy.sleep(10)
+    input("input to shut down px4...")
+    simulation_nodes.shutdown_px4()
+    input("input to reset world...")
+    service_proxies.reset_world()
     print("COMPLETE")
     # FIXME: prev_state = env.reset()
-    telemetry_class = get_telemetry()
+    telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
     local_pos_mutex.acquire()
@@ -295,9 +289,9 @@ def episode_take_action(action):
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
     action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
-    set_attitude(auto_arm=True, **action_dict)
+    service_proxies.set_attitude(auto_arm=True, **action_dict)
     # FIXME: wait time_step and get state
-    telemetry_class = get_telemetry()
+    telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
     local_pos_mutex.acquire()
