@@ -1,0 +1,12 @@
+<launch>
+    <arg name="type" default="gazebo"/> <!-- gazebo, jmavsim, none (only clover packages) -->
+    <arg name="mav_id" default="0"/>
+    <arg name="est" default="ekf2"/> <!-- PX4 estimator: lpe, ekf2 -->
+    <arg name="vehicle" default="clover"/> <!-- PX4 vehicle configuration: clover, clover_vpe -->
+
+    <!-- PX4 instance -->
+    <node name="sitl_$(arg mav_id)" pkg="px4" type="px4" output="screen" required="true" args="$(find px4)/ROMFS/px4fmu_common -s etc/init.d-posix/rcS -i $(arg mav_id)" unless="$(eval type == 'none')">
+        <env name="PX4_SIM_MODEL" value="$(arg vehicle)"/>
+        <env name="PX4_ESTIMATOR" value="$(arg est)"/>
+    </node>
+</launch>
