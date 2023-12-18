@@ -15,11 +15,12 @@ from std_srvs.srv import Trigger
 from tensorflow.keras import layers
 from threading import Lock, Thread
 
-local_pos_mutex = Lock()
+local_position_mutex = Lock()
 
 rospy.init_node('flight')
 
-state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
+# FIXME: should thrust be a part of the state?
+state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw", "thrust"]
 state = [0.0 for i in state_keys]
 action_keys = ["pitch", "roll", "thrust", "yaw"]
 num_states = len(state_keys)
@@ -36,13 +37,14 @@ yaw_max = np.pi
 time_step_ms = 100
 
 def local_position_callback(local_position):
+    global state, local_position_mutex
     mutex_acquired = False
     while not mutex_acquired:
-        mutex_acquired = local_pos_mutex.acquire(blocking=False)
+        mutex_acquired = local_position_mutex.acquire(blocking=False)
     state[state_keys.index("x")] = local_position.pose.position.x
     state[state_keys.index("y")] = local_position.pose.position.y
     state[state_keys.index("z")] = local_position.pose.position.z
-    local_pos_mutex.release()
+    local_position_mutex.release()
 
 def local_position_listener():
     # subscribe to mavros's pose topic
@@ -233,36 +235,36 @@ def policy(state, noise_object):
     return np.squeeze(legal_action)
 
 def episode_calculate_reward_metric(telemetry_class):
-    global state, local_pos_mutex
+    global state, local_position_mutex
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
-    local_pos_mutex.acquire()
+    local_position_mutex.acquire()
     distance_from_desired_pos = (
         (state[0] - desired_pos["x"]) ** 2
         + (state[1] - desired_pos["y"]) ** 2
         + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     reward = -distance_from_desired_pos - (1 - math.e ** (-(state[2] - 1) ** 2))
-    local_pos_mutex.release()
+    local_position_mutex.release()
     return reward
 
 def episode_calculate_if_done(telemetry_class):
-    global state, local_pos_mutex
+    global state, local_position_mutex
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
-    local_pos_mutex.acquire()
+    local_position_mutex.acquire()
     distance_from_desired_pos = (
         (state[0] - desired_pos["x"]) ** 2
         + (state[1] - desired_pos["y"]) ** 2
         + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
-    local_pos_mutex.release()
+    local_position_mutex.release()
     done = distance_from_desired_pos > 10.0
     return done
 
 def episode_reset_and_grab_state():
-    global state, local_pos_mutex
+    global state, local_position_mutex
     # 'failsafe' and return to home
     # mavlink does not jive with gazebo's hard reset
     print("resetting position...")
@@ -273,7 +275,7 @@ def episode_reset_and_grab_state():
     telemetry_class = get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    local_pos_mutex.acquire()
+    local_position_mutex.acquire()
     local_state = [
         copy.deepcopy(state[0]),
         copy.deepcopy(state[1]),
@@ -285,7 +287,7 @@ def episode_reset_and_grab_state():
         telemetry_class.pitch,
         telemetry_class.yaw
     ]
-    local_pos_mutex.release()
+    local_position_mutex.release()
     return local_state
 
 def episode_take_action(action):
@@ -299,7 +301,7 @@ def episode_take_action(action):
     telemetry_class = get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    local_pos_mutex.acquire()
+    local_position_mutex.acquire()
     local_state = [
         copy.deepcopy(state[0]),
         copy.deepcopy(state[1]),
@@ -311,7 +313,7 @@ def episode_take_action(action):
         telemetry_class.pitch,
         telemetry_class.yaw
     ]
-    local_pos_mutex.release()
+    local_position_mutex.release()
     reward = episode_calculate_reward_metric(telemetry_class)
     done = episode_calculate_if_done(telemetry_class)
     return (local_state, reward, done)
