@@ -242,7 +242,7 @@ def episode_calculate_reward_metric(telemetry_class):
         + (state[1] - desired_pos["y"]) ** 2
         + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
-    reward = -distance_from_desired_pos - (1 - math.e ** (-(state[2] - 1) ** 2))
+    reward = -distance_from_desired_pos + 100 * (math.e ** (-(state[2] - 1) ** 2) - 1)
     local_pos_mutex.release()
     return reward
 
@@ -356,7 +356,6 @@ simulation_nodes.launch_gazebo()
 simulation_nodes.launch_clover_services()
 simulation_nodes.launch_clover_model()
 
-# Takes about 4 min to train
 for ep in range(total_episodes):
 
     prev_state = episode_reset_and_grab_state()

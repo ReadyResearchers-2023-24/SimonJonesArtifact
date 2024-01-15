@@ -23,6 +23,7 @@ def init(self):
     rospy.wait_for_service('/gazebo/reset_world')
     arming = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
     reset_world = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+    # https://github.com/CopterExpress/clover/blob/master/clover/srv/GetTelemetry.srv
     get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
     navigate = rospy.ServiceProxy('navigate', srv.Navigate)
     navigate_global = rospy.ServiceProxy('navigate_global', srv.NavigateGlobal)
