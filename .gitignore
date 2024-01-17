@@ -3,3 +3,5 @@ install/
 log/
 .cache/
 *.h5
+temp/
+deleteme/
