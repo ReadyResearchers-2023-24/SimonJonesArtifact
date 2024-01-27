@@ -2,3 +2,7 @@ build/
 install/
 log/
 .cache/
+*.h5
+temp/
+deleteme/
+__pycache__/
