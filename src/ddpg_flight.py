@@ -261,7 +261,7 @@ def episode_reset_and_grab_state():
     # wait until position is reset
     input("input to shut down px4...")
     # disarm the px4
-    service_proxies.arming(False)
+    service_proxies.arming(value=False)
     input("input to reset world...")
     service_proxies.reset_world()
     print("COMPLETE")
@@ -353,7 +353,8 @@ if launch_simulation_nodes_manually:
     simulation_nodes.launch_gazebo()
     simulation_nodes.launch_clover_services()
     simulation_nodes.launch_clover_model()
-    service_proxies.init()
+
+service_proxies.init()
 
 for ep in range(total_episodes):
 
