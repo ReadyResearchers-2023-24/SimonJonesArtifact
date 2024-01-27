@@ -5,3 +5,5 @@ log/
 *.h5
 temp/
 deleteme/
+__pycache__/
+__pycache__/*
