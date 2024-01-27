@@ -345,12 +345,15 @@ ep_reward_list = []
 # To store average reward history of last few episodes
 avg_reward_list = []
 
+# NOTE: set to true to launch nodes from this process
+launch_simulation_nodes_manually = False
 # set up ROS related handles
-simulation_nodes.launch_px4()
-simulation_nodes.launch_gazebo()
-simulation_nodes.launch_clover_services()
-simulation_nodes.launch_clover_model()
-service_proxies.init()
+if launch_simulation_nodes_manually:
+    simulation_nodes.launch_px4()
+    simulation_nodes.launch_gazebo()
+    simulation_nodes.launch_clover_services()
+    simulation_nodes.launch_clover_model()
+    service_proxies.init()
 
 for ep in range(total_episodes):
 
