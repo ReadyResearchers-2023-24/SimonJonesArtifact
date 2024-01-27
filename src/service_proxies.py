@@ -7,15 +7,15 @@ from std_srvs.srv import Empty
 from std_srvs.srv import Trigger
 
 arming = None
-reset_world = None
 get_telemetry = None
+land = None
 navigate = None
 navigate_global = None
-set_position = None
-set_velocity = None
+reset_world = None
 set_attitude = None
+set_position = None
 set_rates = None
-land = None
+set_velocity = None
 
 def init(self):
     """Create service proxies"""
