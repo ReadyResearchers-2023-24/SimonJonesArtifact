@@ -260,7 +260,8 @@ def episode_reset_and_grab_state():
     global state, local_pos_mutex
     # wait until position is reset
     input("input to shut down px4...")
-    simulation_nodes.shutdown_px4()
+    # disarm the px4
+    service_proxies.arming(False)
     input("input to reset world...")
     service_proxies.reset_world()
     print("COMPLETE")
