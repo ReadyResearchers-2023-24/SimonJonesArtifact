@@ -8,19 +8,8 @@ gazebo_launch = None
 clover_services_launch = None
 clover_model_launch = None
 
-# no se
-px4_launch_pid = 0
-gazebo_launch_pid = 0
-clover_services_launch_pid = 0
-clover_model_launch_pid = 0
-
 def launch_px4():
     """Launch px4 node."""
-    pid = os.fork()
-    # exit if parent process
-    if pid > 0:
-        px4_launch_pid = pid
-        return
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     px4_launch = roslaunch.parent.ROSLaunchParent(
         uuid,
@@ -31,11 +20,6 @@ def launch_px4():
 
 def launch_gazebo():
     """Launch gazebo node."""
-    pid = os.fork()
-    # exit if parent process
-    if pid > 0:
-        gazebo_launch_pid = pid
-        return
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     gazebo_launch = roslaunch.parent.ROSLaunchParent(
         uuid,
@@ -46,11 +30,6 @@ def launch_gazebo():
 
 def launch_clover_services():
     """Launch clover_services node."""
-    pid = os.fork()
-    # exit if parent process
-    if pid > 0:
-        clover_services_launch_pid = pid
-        return
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     clover_services_launch = roslaunch.parent.ROSLaunchParent(
         uuid,
@@ -61,11 +40,6 @@ def launch_clover_services():
 
 def launch_clover_model():
     """Launch clover_model node."""
-    pid = os.fork()
-    # exit if parent process
-    if pid > 0:
-        clover_model_launch_pid = pid
-        return
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     clover_model_launch = roslaunch.parent.ROSLaunchParent(
@@ -75,6 +49,7 @@ def launch_clover_model():
     clover_model_launch.start()
     rospy.loginfo("started clover_model")
 
+# FIXME: this does not currently work
 def shutdown_px4():
     """Shut down px4 node."""
     if (px4_launch_pid is None):
