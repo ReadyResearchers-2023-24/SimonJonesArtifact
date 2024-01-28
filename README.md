@@ -305,8 +305,10 @@ my_package/
   package.xml
 ```
 
-To create a catkin package, you must already have a workspace initialized. After
-entering the workspace root, you can run the following command:
+To create a catkin package, you must already have a workspace initialized.
+Initializing a catkin workspace is as simple as running `mkdir -p
+path/to/workspace/src; cd path/to/workspace; catkin_make`. After entering the
+workspace root, you can run the following command:
 
 ```sh
 catkin_create_pkg <package_name> [depend1] [depend2] [depend3]

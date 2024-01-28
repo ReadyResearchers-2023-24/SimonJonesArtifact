@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rospy
 import numpy as np
 import math
@@ -12,7 +14,7 @@ from threading import Lock, Thread
 
 local_pos_mutex = Lock()
 
-rospy.init_node('flight')
+rospy.init_node('clover_train')
 
 state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
 state = [0.0 for i in state_keys]
@@ -43,6 +45,7 @@ def local_position_listener():
     # subscribe to mavros's pose topic
     rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
     rospy.spin()
+    rospy.logdebug("exiting local_position_listener")
 
 
 local_position_thread = Thread(target=local_position_listener, args=())
@@ -265,7 +268,6 @@ def episode_reset_and_grab_state():
     input("input to reset world...")
     service_proxies.reset_world()
     print("COMPLETE")
-    # FIXME: prev_state = env.reset()
     telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
@@ -332,7 +334,8 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-total_episodes = 200
+total_episodes = 2
+
 # Discount factor for future rewards
 gamma = 0.99
 # Used to update target networks
@@ -361,9 +364,9 @@ for ep in range(total_episodes):
     prev_state = episode_reset_and_grab_state()
     episodic_reward = 0
 
-    # set loop rate of 10Hz
+    # set loop rate of 100Hz
     # this is handled by ROS to ensure consistent steps
-    r = rospy.Rate(10)
+    r = rospy.Rate(100)
     while not rospy.is_shutdown():
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
@@ -396,9 +399,8 @@ for ep in range(total_episodes):
 
     # Mean of last 40 episodes
     avg_reward = np.mean(ep_reward_list[-40:])
-    print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+    print(f"Episode * {ep} * Avg Reward is ==> {avg_reward}")
     avg_reward_list.append(avg_reward)
-
 
 # Save the weights
 actor_model.save_weights("ddpg_actor.h5")
@@ -406,5 +408,7 @@ critic_model.save_weights("ddpg_critic.h5")
 
 target_actor.save_weights("ddpg_target_actor.h5")
 target_critic.save_weights("ddpg_target_critic.h5")
+
+rospy.signal_shutdown(f"Succesfully {total_episodes}. Signaling shut down.")
 
 local_position_thread.join()

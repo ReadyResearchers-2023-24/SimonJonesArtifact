@@ -1,0 +1,8 @@
+prefix=/home/clover/SimonJonesArtifact/devel
+
+Name: clover_train
+Description: Description of clover_train
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
