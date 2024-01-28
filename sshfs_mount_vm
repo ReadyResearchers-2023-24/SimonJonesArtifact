@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+# use sshfs to mount clover_vm's filesystem onto a directory named temp
+# note: temp is gitignored by default
+# note: must enable port forwarding of port 22 (ssh) to 2222 on the vm
+
+set -e
+
+mkdir -p temp
+sudo sshfs -o allow_other,default_permissions -p 2222 clover@localhost:/home/clover temp/
+echo "successfully mounted clover@localhost:/home/clover onto temp/"

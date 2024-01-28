@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+# ssh into clover_vm via clover@localhost
+# note: must enable port forwarding of port 22 (ssh) to 2222 on the vm
+
+ssh clover@localhost -p 2222
