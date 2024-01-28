@@ -289,6 +289,39 @@ This section is a work in progress. Feel free to contribute.
   docker pull osrf/ros:noetic-desktop-full
   ```
 
+#### Creating a catkin Package
+
+Every catkin package follows a set of rules:
+
+* It contains a `package.xml` file.
+* It contains a `CMakeLists.txt` file which uses catkin.
+* Each package must have its own folder
+
+```txt
+# example package tree
+
+my_package/
+  CMakeLists.txt
+  package.xml
+```
+
+To create a catkin package, you must already have a workspace initialized. After
+entering the workspace root, you can run the following command:
+
+```sh
+catkin_create_pkg <package_name> [depend1] [depend2] [depend3]
+```
+
+After creating a package, you must rebuild the workspace in order for the proper
+shell sourcing to happen.
+
+```sh
+cd ~/my_workspace
+catkin_make
+# now we can source the setup.[sh|bash|zsh] file
+. ~/catkin_ws/devel/setup.sh
+```
+
 ### Installing VirtualBox - Ubuntu 22.04
 
 [See here](https://www.virtualbox.org/wiki/Linux_Downloads#Debian-basedLinuxdistributions)
