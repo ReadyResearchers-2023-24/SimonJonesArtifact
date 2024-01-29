@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
-import rospy
-import numpy as np
-import math
 import copy
-import tensorflow as tf
-import simulation_nodes
+import math
+import numpy as np
+import rospy
 import service_proxies
+import simulation_nodes
+import tensorflow as tf
+import time
 
 from geometry_msgs.msg import PoseStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
-
-local_pos_mutex = Lock()
 
 rospy.init_node('clover_train')
 
@@ -32,10 +31,27 @@ yaw_max = np.pi
 
 time_step_ms = 100
 
+# note: currently, rospy will only allow one callback instance at a time to be run
+# this omits any worries about multiple callbacks loading up to get access to the mutex
+
+max_mutex_misses_before_warning = 10
+def warn_if_too_many_mutex_misses(mutex_misses):
+    if mutex_misses > max_mutex_misses_before_warning:
+        rospy.logerr(f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times")
+
+# times the callback failed to acquire the mutex
+local_position_callback_mutex_misses = 0
+local_pos_mutex = Lock()
+
 def local_position_callback(local_position):
-    mutex_acquired = False
-    while not mutex_acquired:
-        mutex_acquired = local_pos_mutex.acquire(blocking=False)
+    mutex_acquired = local_pos_mutex.acquire(blocking=False)
+    # Quickly terminate if mutex was not acquired. This is banking on the fact
+    # that ros does not allow multiple instances of the same callback function.
+    # Otherwise, we would have to use atomic types.
+    if not mutex_acquired:
+        local_position_callback_mutex_misses += 1
+        warn_if_too_many_mutex_misses(local_position_callback_mutex_misses)
+        return
     state[state_keys.index("x")] = local_position.pose.position.x
     state[state_keys.index("y")] = local_position.pose.position.y
     state[state_keys.index("z")] = local_position.pose.position.z
@@ -45,8 +61,6 @@ def local_position_listener():
     # subscribe to mavros's pose topic
     rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
     rospy.spin()
-    rospy.logdebug("exiting local_position_listener")
-
 
 local_position_thread = Thread(target=local_position_listener, args=())
 local_position_thread.start()
@@ -248,7 +262,9 @@ def episode_calculate_if_done(telemetry_class):
     global state, local_pos_mutex
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
+    print("[episode_calculate_if_done] trying to acquire mutex...")
     local_pos_mutex.acquire()
+    print("[episode_calculate_if_done] mutex acquired!")
     distance_from_desired_pos = (
         (state[0] - desired_pos["x"]) ** 2
         + (state[1] - desired_pos["y"]) ** 2
@@ -261,13 +277,28 @@ def episode_calculate_if_done(telemetry_class):
 
 def episode_reset_and_grab_state():
     global state, local_pos_mutex
-    # wait until position is reset
-    input("input to shut down px4...")
-    # disarm the px4
-    service_proxies.arming(value=False)
-    input("input to reset world...")
-    service_proxies.reset_world()
-    print("COMPLETE")
+    # FIXME: https://answers.gazebosim.org/question/27178/looking-for-a-stable-solution-to-reset-a-robot-with-controller-in-gazebo/
+    # FIXME: need to determine if this is a good method or not....
+    reference_frame = "world"
+    # get state of clover model wrt world frame
+    clover_model_state = service_proxies.get_model_state("clover", reference_frame)
+    # remove clover model from world
+    service_proxies.delete_model("clover")
+    # get drone urdf description as an xml string
+    clover_urdf_xml = rospy.get_param("/drone_description")
+    # pause physics engine
+    input("pause_physics()")
+    service_proxies.pause_physics()
+    # spawn new model
+    service_proxies.spawn_urdf_model(
+        model_name="clover",
+        model_xml=clover_urdf_xml,
+        robot_namespace="",
+        initial_pose=clover_model_state.pose,
+        reference_frame=reference_frame
+    )
+    input("unpause_physics()")
+    service_proxies.unpause_physics()
     telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
@@ -334,7 +365,7 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-total_episodes = 2
+total_episodes = 15
 
 # Discount factor for future rewards
 gamma = 0.99
@@ -350,13 +381,13 @@ avg_reward_list = []
 
 # NOTE: set to true to launch nodes from this process
 launch_simulation_nodes_manually = False
-# set up ROS related handles
 if launch_simulation_nodes_manually:
     simulation_nodes.launch_px4()
     simulation_nodes.launch_gazebo()
     simulation_nodes.launch_clover_services()
     simulation_nodes.launch_clover_model()
 
+# set up ROS related handles
 service_proxies.init()
 
 for ep in range(total_episodes):
@@ -371,9 +402,11 @@ for ep in range(total_episodes):
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
         action = policy(tf_prev_state, ou_noise)
+        print("[TRACE] policy calculated")
         # Recieve state and reward from environment.
         # FIXME: state, reward, done, info = env.step(action)
         local_state, reward, done = episode_take_action(action)
+        print("[TRACE] action taken")
 
         # skip if reward is not a number (this is ROS clover's fault)
         if (math.isnan(reward)):
@@ -382,10 +415,12 @@ for ep in range(total_episodes):
 
         buffer.record((prev_state, action, reward, local_state))
         episodic_reward += reward
+        print("[TRACE] recorded")
 
         buffer.learn()
         update_target(target_actor.variables, actor_model.variables, tau)
         update_target(target_critic.variables, critic_model.variables, tau)
+        print("[TRACE] learned and updated")
 
         # End this episode when `done` is True
         if done:
@@ -394,6 +429,7 @@ for ep in range(total_episodes):
         prev_state = local_state
         # sleep governed by rospy.Rate to ensure consistent loop intervals
         r.sleep()
+        print("[TRACE] slept")
 
     ep_reward_list.append(episodic_reward)
 
