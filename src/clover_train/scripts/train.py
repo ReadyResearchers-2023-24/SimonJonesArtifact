@@ -34,6 +34,9 @@ time_step_ms = 100
 # note: currently, rospy will only allow one callback instance at a time to be run
 # this omits any worries about multiple callbacks loading up to get access to the mutex
 
+# FIXME: create wrapper for subscriber/mutex combo
+# FIXME: create way to query imu data using /mavros/imu/data or /mavros/imu/data_raw topic.
+
 max_mutex_misses_before_warning = 10
 def warn_if_too_many_mutex_misses(mutex_misses):
     if mutex_misses > max_mutex_misses_before_warning:
