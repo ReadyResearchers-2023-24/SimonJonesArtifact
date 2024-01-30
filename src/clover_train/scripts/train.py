@@ -44,6 +44,7 @@ local_position_callback_mutex_misses = 0
 local_pos_mutex = Lock()
 
 def local_position_callback(local_position):
+    global local_position_callback_mutex_misses
     mutex_acquired = local_pos_mutex.acquire(blocking=False)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
     # that ros does not allow multiple instances of the same callback function.
@@ -230,6 +231,7 @@ def get_critic():
 
 def policy(state, noise_object):
     sampled_actions = tf.squeeze(actor_model(state))
+    print("state: ", state)
 
     # create tensor with noise
     noise_array = noise_object()
@@ -277,28 +279,18 @@ def episode_calculate_if_done(telemetry_class):
 
 def episode_reset_and_grab_state():
     global state, local_pos_mutex
-    # FIXME: https://answers.gazebosim.org/question/27178/looking-for-a-stable-solution-to-reset-a-robot-with-controller-in-gazebo/
-    # FIXME: need to determine if this is a good method or not....
-    reference_frame = "world"
-    # get state of clover model wrt world frame
-    clover_model_state = service_proxies.get_model_state("clover", reference_frame)
-    # remove clover model from world
-    service_proxies.delete_model("clover")
-    # get drone urdf description as an xml string
-    clover_urdf_xml = rospy.get_param("/drone_description")
-    # pause physics engine
-    input("pause_physics()")
-    service_proxies.pause_physics()
-    # spawn new model
-    service_proxies.spawn_urdf_model(
-        model_name="clover",
-        model_xml=clover_urdf_xml,
-        robot_namespace="",
-        initial_pose=clover_model_state.pose,
-        reference_frame=reference_frame
+    # set quadcopter attitude to initial state
+    # https://docs.ros.org/en/melodic/api/clover/html/srv/SetAttitude.html
+    service_proxies.set_attitude(pitch=0, roll=0, yaw=0, thrust=0, auto_arm=True)
+    # FIXME: wrap this if it works
+    # force disarm the quadcopter
+    service_proxies.mavros_command(
+        broadcast=False,
+        command=400,
+        confirmation=0,
+        param2=21196,
     )
-    input("unpause_physics()")
-    service_proxies.unpause_physics()
+    service_proxies.reset_world()
     telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
@@ -323,6 +315,7 @@ def episode_take_action(action):
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
     action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
+    print(action_dict)
     service_proxies.set_attitude(auto_arm=True, **action_dict)
     # FIXME: wait time_step and get state
     telemetry_class = service_proxies.get_telemetry()
@@ -399,12 +392,12 @@ for ep in range(total_episodes):
     # this is handled by ROS to ensure consistent steps
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
+        print("state0:", prev_state)
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
 
         action = policy(tf_prev_state, ou_noise)
         print("[TRACE] policy calculated")
         # Recieve state and reward from environment.
-        # FIXME: state, reward, done, info = env.step(action)
         local_state, reward, done = episode_take_action(action)
         print("[TRACE] action taken")
 

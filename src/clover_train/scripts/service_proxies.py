@@ -4,7 +4,7 @@ import rospy
 
 from clover import srv
 from geometry_msgs.msg import PoseStamped
-from mavros_msgs.srv import CommandBool
+from mavros_msgs.srv import CommandBool, CommandLong
 from std_srvs.srv import Empty
 from std_srvs.srv import Trigger
 from gazebo_msgs.srv import GetModelState, DeleteModel, SpawnModel
@@ -14,6 +14,7 @@ delete_model = None
 get_model_state = None
 get_telemetry = None
 land = None
+mavros_command = None
 navigate = None
 navigate_global = None
 pause_physics = None
@@ -35,6 +36,7 @@ def init():
     globals()["get_model_state"] = rospy.ServiceProxy("/gazebo/get_model_state", GetModelState)
     globals()["get_telemetry"] = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
     globals()["land"] = rospy.ServiceProxy('land', Trigger)
+    globals()["mavros_command"] = rospy.ServiceProxy('/mavros/cmd/command', CommandLong)
     globals()["navigate"] = rospy.ServiceProxy('navigate', srv.Navigate)
     globals()["navigate_global"] = rospy.ServiceProxy('navigate_global', srv.NavigateGlobal)
     globals()["pause_physics"] = rospy.ServiceProxy("/gazebo/pause_physics", Empty)
