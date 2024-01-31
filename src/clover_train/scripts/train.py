@@ -9,24 +9,32 @@ import simulation_nodes
 import tensorflow as tf
 import time
 
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
 
 rospy.init_node('clover_train')
 
-state_keys = ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "yaw"]
-state = [0.0 for i in state_keys]
+num_states = 9
+x_index = 0
+y_index = 1
+z_index = 2
+vx_index = 3
+vy_index = 4
+vz_index = 5
+wx_index = 6
+wy_index = 7
+wz_index = 8
+state = [0.0 for i in range(num_states)]
 action_keys = ["pitch", "roll", "thrust", "yaw"]
-num_states = len(state_keys)
 num_actions = len(action_keys)
-pitch_min = np.pi
+pitch_min = -np.pi
 pitch_max = np.pi
-roll_min = np.pi
+roll_min = -np.pi
 roll_max = np.pi
 thrust_min = 0.0
 thrust_max = 1.0
-yaw_min = np.pi
+yaw_min = -np.pi
 yaw_max = np.pi
 
 time_step_ms = 100
@@ -37,29 +45,63 @@ time_step_ms = 100
 # FIXME: create wrapper for subscriber/mutex combo
 # FIXME: create way to query imu data using /mavros/imu/data or /mavros/imu/data_raw topic.
 
+state_mutex = Lock()
+
 max_mutex_misses_before_warning = 10
 def warn_if_too_many_mutex_misses(mutex_misses):
     if mutex_misses > max_mutex_misses_before_warning:
         rospy.logerr(f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times")
 
 # times the callback failed to acquire the mutex
+velocity_callback_mutex_misses = 0
+
+def velocity_callback(velocity):
+    global velocity_callback_mutex_misses
+    mutex_acquired = state_mutex.acquire(blocking=False)
+    # Quickly terminate if mutex was not acquired. This is banking on the fact
+    # that ros does not allow multiple instances of the same callback function.
+    # Otherwise, we would have to use atomic types.
+    if not mutex_acquired:
+        velocity_callback_mutex_misses += 1
+        warn_if_too_many_mutex_misses(velocity_callback_mutex_misses)
+        # take mod of misses; warn every time it maxes out
+        velocity_callback_mutex_misses %= max_mutex_misses_before_warning
+        return
+    state[vx_index] = velocity.twist.linear.x
+    state[vy_index] = velocity.twist.linear.y
+    state[vz_index] = velocity.twist.linear.z
+    state[wx_index] = velocity.twist.angular.x
+    state[wy_index] = velocity.twist.angular.y
+    state[wz_index] = velocity.twist.angular.z
+    state_mutex.release()
+
+def velocity_listener():
+    # subscribe to mavros's pose topic
+    rospy.Subscriber('/mavros/local_position/velocity_local', TwistStamped, velocity_callback)
+    rospy.spin()
+
+velocity_thread = Thread(target=velocity_listener, args=())
+velocity_thread.start()
+
+# times the callback failed to acquire the mutex
 local_position_callback_mutex_misses = 0
-local_pos_mutex = Lock()
 
 def local_position_callback(local_position):
     global local_position_callback_mutex_misses
-    mutex_acquired = local_pos_mutex.acquire(blocking=False)
+    mutex_acquired = state_mutex.acquire(blocking=False)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
     # that ros does not allow multiple instances of the same callback function.
     # Otherwise, we would have to use atomic types.
     if not mutex_acquired:
         local_position_callback_mutex_misses += 1
         warn_if_too_many_mutex_misses(local_position_callback_mutex_misses)
+        # take mod of misses; warn every time it maxes out
+        local_position_callback_mutex_misses %= max_mutex_misses_before_warning
         return
-    state[state_keys.index("x")] = local_position.pose.position.x
-    state[state_keys.index("y")] = local_position.pose.position.y
-    state[state_keys.index("z")] = local_position.pose.position.z
-    local_pos_mutex.release()
+    state[x_index] = local_position.pose.position.x
+    state[y_index] = local_position.pose.position.y
+    state[z_index] = local_position.pose.position.z
+    state_mutex.release()
 
 def local_position_listener():
     # subscribe to mavros's pose topic
@@ -250,25 +292,25 @@ def policy(state, noise_object):
     return np.squeeze(legal_action)
 
 def episode_calculate_reward_metric(telemetry_class):
-    global state, local_pos_mutex
+    global state, state_mutex
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
-    local_pos_mutex.acquire()
+    state_mutex.acquire()
     distance_from_desired_pos = (
         (state[0] - desired_pos["x"]) ** 2
         + (state[1] - desired_pos["y"]) ** 2
         + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     reward = -distance_from_desired_pos + 100 * (math.e ** (-(state[2] - 1) ** 2) - 1)
-    local_pos_mutex.release()
+    state_mutex.release()
     return reward
 
 def episode_calculate_if_done(telemetry_class):
-    global state, local_pos_mutex
+    global state, state_mutex
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
     print("[episode_calculate_if_done] trying to acquire mutex...")
-    local_pos_mutex.acquire()
+    state_mutex.acquire()
     print("[episode_calculate_if_done] mutex acquired!")
     distance_from_desired_pos = (
         (state[0] - desired_pos["x"]) ** 2
@@ -276,12 +318,12 @@ def episode_calculate_if_done(telemetry_class):
         + (state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
-    local_pos_mutex.release()
+    state_mutex.release()
     done = distance_from_desired_pos > 10.0
     return done
 
 def episode_reset_and_grab_state():
-    global state, local_pos_mutex
+    global state, state_mutex
     # set quadcopter attitude to initial state
     # https://docs.ros.org/en/melodic/api/clover/html/srv/SetAttitude.html
     service_proxies.set_attitude(pitch=0, roll=0, yaw=0, thrust=0, auto_arm=True)
@@ -297,19 +339,9 @@ def episode_reset_and_grab_state():
     telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    local_pos_mutex.acquire()
-    local_state = [
-        copy.deepcopy(state[0]),
-        copy.deepcopy(state[1]),
-        copy.deepcopy(state[2]),
-        telemetry_class.vx,
-        telemetry_class.vy,
-        telemetry_class.vz,
-        telemetry_class.roll,
-        telemetry_class.pitch,
-        telemetry_class.yaw
-    ]
-    local_pos_mutex.release()
+    state_mutex.acquire()
+    local_state = copy.deepcopy(state)
+    state_mutex.release()
     return local_state
 
 def episode_take_action(action):
@@ -324,19 +356,9 @@ def episode_take_action(action):
     telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
-    local_pos_mutex.acquire()
-    local_state = [
-        copy.deepcopy(state[0]),
-        copy.deepcopy(state[1]),
-        copy.deepcopy(state[2]),
-        telemetry_class.vx,
-        telemetry_class.vy,
-        telemetry_class.vz,
-        telemetry_class.roll,
-        telemetry_class.pitch,
-        telemetry_class.yaw
-    ]
-    local_pos_mutex.release()
+    state_mutex.acquire()
+    local_state = copy.deepcopy(state)
+    state_mutex.release()
     reward = episode_calculate_reward_metric(telemetry_class)
     done = episode_calculate_if_done(telemetry_class)
     return (local_state, reward, done)
