@@ -15,16 +15,20 @@ from threading import Lock, Thread
 
 rospy.init_node('clover_train')
 
-num_states = 9
-x_index = 0
-y_index = 1
-z_index = 2
-vx_index = 3
-vy_index = 4
-vz_index = 5
-wx_index = 6
-wy_index = 7
-wz_index = 8
+num_states = 13
+px_index = 0
+py_index = 1
+pz_index = 2
+qx_index = 3
+qy_index = 4
+qz_index = 5
+qw_index = 6
+vx_index = 7
+vy_index = 8
+vz_index = 9
+wx_index = 10
+wy_index = 11
+wz_index = 12
 state = [0.0 for i in range(num_states)]
 action_keys = ["pitch", "roll", "thrust", "yaw"]
 num_actions = len(action_keys)
@@ -98,9 +102,15 @@ def local_position_callback(local_position):
         # take mod of misses; warn every time it maxes out
         local_position_callback_mutex_misses %= max_mutex_misses_before_warning
         return
-    state[x_index] = local_position.pose.position.x
-    state[y_index] = local_position.pose.position.y
-    state[z_index] = local_position.pose.position.z
+    # position
+    state[px_index] = local_position.pose.position.x
+    state[py_index] = local_position.pose.position.y
+    state[pz_index] = local_position.pose.position.z
+    # quaternion
+    state[qx_index] = local_position.pose.orientation.x
+    state[qy_index] = local_position.pose.orientation.y
+    state[qz_index] = local_position.pose.orientation.z
+    state[qw_index] = local_position.pose.orientation.w
     state_mutex.release()
 
 def local_position_listener():
@@ -291,35 +301,58 @@ def policy(state, noise_object):
 
     return np.squeeze(legal_action)
 
-def episode_calculate_reward_metric(telemetry_class):
-    global state, state_mutex
+def episode_calculate_reward_metric(local_state):
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
-    state_mutex.acquire()
     distance_from_desired_pos = (
-        (state[0] - desired_pos["x"]) ** 2
-        + (state[1] - desired_pos["y"]) ** 2
-        + (state[2] - desired_pos["z"]) ** 2
+        (local_state[px_index] - desired_pos["x"]) ** 2
+        + (local_state[py_index] - desired_pos["y"]) ** 2
+        + (local_state[pz_index] - desired_pos["z"]) ** 2
     ) ** (1/2)
-    reward = -distance_from_desired_pos + 100 * (math.e ** (-(state[2] - 1) ** 2) - 1)
-    state_mutex.release()
+    reward = -distance_from_desired_pos + 100 * (math.e ** (-(local_state[2] - 1) ** 2) - 1)
     return reward
 
-def episode_calculate_if_done(telemetry_class):
-    global state, state_mutex
+def quaternion_to_euler_angles(qx, qy, qz, qw):
+    # roll (x-axis rotation)
+    sinr_cosp = 2 * (qw * qx + qy * qz);
+    cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
+    roll = math.atan2(sinr_cosp, cosr_cosp);
+
+    # pitch (y-axis rotation)
+    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz));
+    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz));
+    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2;
+
+    # yaw (z-axis rotation)
+    siny_cosp = 2 * (qw * qz + qx * qy);
+    cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
+    yaw = math.atan2(siny_cosp, cosy_cosp);
+
+    return (roll, pitch, yaw)
+
+def episode_calculate_if_done(local_state):
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
     print("[episode_calculate_if_done] trying to acquire mutex...")
-    state_mutex.acquire()
     print("[episode_calculate_if_done] mutex acquired!")
     distance_from_desired_pos = (
-        (state[0] - desired_pos["x"]) ** 2
-        + (state[1] - desired_pos["y"]) ** 2
-        + (state[2] - desired_pos["z"]) ** 2
+        (local_state[0] - desired_pos["x"]) ** 2
+        + (local_state[1] - desired_pos["y"]) ** 2
+        + (local_state[2] - desired_pos["z"]) ** 2
     ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
-    state_mutex.release()
-    done = distance_from_desired_pos > 10.0
+    # get current angular orientation
+    (roll, pitch, yaw) = quaternion_to_euler_angles(
+        local_state[qx_index],
+        local_state[qy_index],
+        local_state[qz_index],
+        local_state[qw_index]
+    )
+    print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
+    done = (False
+        or distance_from_desired_pos > 10.0
+        or abs(roll) > math.pi
+        or abs(pitch) > math.pi)
     return done
 
 def episode_reset_and_grab_state():
@@ -359,8 +392,8 @@ def episode_take_action(action):
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
-    reward = episode_calculate_reward_metric(telemetry_class)
-    done = episode_calculate_if_done(telemetry_class)
+    reward = episode_calculate_reward_metric(local_state)
+    done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
 
 std_dev = 0.2
@@ -383,7 +416,7 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-total_episodes = 15
+total_episodes = 200
 
 # Discount factor for future rewards
 gamma = 0.99
