@@ -351,12 +351,11 @@ def episode_calculate_if_done(local_state):
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
     done = (False
         or distance_from_desired_pos > 10.0
-        or abs(roll) > math.pi
-        or abs(pitch) > math.pi)
+        or abs(roll) > (math.pi / 2)
+        or abs(pitch) > (math.pi / 2))
     return done
 
 def episode_reset_and_grab_state():
-    global state, state_mutex
     # set quadcopter attitude to initial state
     # https://docs.ros.org/en/melodic/api/clover/html/srv/SetAttitude.html
     service_proxies.set_attitude(pitch=0, roll=0, yaw=0, thrust=0, auto_arm=True)
@@ -369,7 +368,6 @@ def episode_reset_and_grab_state():
         param2=21196,
     )
     service_proxies.reset_world()
-    telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
     state_mutex.acquire()
@@ -378,7 +376,6 @@ def episode_reset_and_grab_state():
     return local_state
 
 def episode_take_action(action):
-    global state
     # FIXME: lag in clover ROS causes this to not work
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
@@ -386,7 +383,6 @@ def episode_take_action(action):
     print(action_dict)
     service_proxies.set_attitude(auto_arm=True, **action_dict)
     # FIXME: wait time_step and get state
-    telemetry_class = service_proxies.get_telemetry()
     # pull out parts of the state
     # that we want to know from telemetry
     state_mutex.acquire()
