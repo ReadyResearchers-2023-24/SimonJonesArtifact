@@ -7,23 +7,25 @@ import rospy
 import service_proxies
 import simulation_nodes
 import tensorflow as tf
-import time
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
-from typing import List, Type, Any
+from typing import List, Any
 from dataclasses import dataclass, fields, asdict
 
-rospy.init_node('clover_train')
+rospy.init_node("clover_train")
+
 
 def count_dataclass_fields(the_dataclass) -> int:
     """Count the number of fields in a dataclass."""
     dummy_instance = the_dataclass()
     return len([field.name for field in fields(dummy_instance)])
 
+
 def dataclass_to_list(the_dataclass_instance) -> List[Any]:
     return list(asdict(the_dataclass).values())
+
 
 # define state space
 @dataclass
@@ -42,10 +44,12 @@ class State:
     wy: float = 0.0
     wz: float = 0.0
 
+
 num_states = count_dataclass_fields(State)
 
 # initialize global state variable
 state = State()
+
 
 # define action space
 @dataclass
@@ -54,11 +58,12 @@ class Action:
     dy: float = 0.0
     dz: float = 0.0
 
+
 num_actions = count_dataclass_fields(Action)
 
-rangefinder_range: float = 6.0 # meter
-action_min: float = -rangefinder_range # meter
-action_max: float = rangefinder_range # meter
+rangefinder_range: float = 6.0  # meter
+action_min: float = -rangefinder_range  # meter
+action_max: float = rangefinder_range  # meter
 
 time_step_ms = 100
 
@@ -70,12 +75,18 @@ time_step_ms = 100
 state_mutex = Lock()
 
 max_mutex_misses_before_warning = 10
+
+
 def warn_if_too_many_mutex_misses(mutex_misses):
     if mutex_misses > max_mutex_misses_before_warning:
-        rospy.logerr(f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times")
+        rospy.logerr(
+            f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times"
+        )
+
 
 # times the callback failed to acquire the mutex
 velocity_callback_mutex_misses = 0
+
 
 def velocity_callback(velocity):
     global velocity_callback_mutex_misses
@@ -97,16 +108,21 @@ def velocity_callback(velocity):
     state.wz = velocity.twist.angular.z
     state_mutex.release()
 
+
 def velocity_listener():
     # subscribe to mavros's pose topic
-    rospy.Subscriber('/mavros/local_position/velocity_local', TwistStamped, velocity_callback)
+    rospy.Subscriber(
+        "/mavros/local_position/velocity_local", TwistStamped, velocity_callback
+    )
     rospy.spin()
+
 
 velocity_thread = Thread(target=velocity_listener, args=())
 velocity_thread.start()
 
 # times the callback failed to acquire the mutex
 local_position_callback_mutex_misses = 0
+
 
 def local_position_callback(local_position):
     global local_position_callback_mutex_misses
@@ -131,13 +147,18 @@ def local_position_callback(local_position):
     state.qw = local_position.pose.orientation.w
     state_mutex.release()
 
+
 def local_position_listener():
     # subscribe to mavros's pose topic
-    rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
+    rospy.Subscriber(
+        "/mavros/local_position/pose", PoseStamped, local_position_callback
+    )
     rospy.spin()
+
 
 local_position_thread = Thread(target=local_position_listener, args=())
 local_position_thread.start()
+
 
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
@@ -202,7 +223,11 @@ class Buffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-        self, state_batch, action_batch, reward_batch, next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -252,14 +277,14 @@ class Buffer:
 # Based on rate `tau`, which is much less than one.
 @tf.function
 def update_target(target_weights, weights, tau):
-    for (a, b) in zip(target_weights, weights):
+    for a, b in zip(target_weights, weights):
         a.assign(b * tau + a * (1 - tau))
+
 
 def get_actor():
     # Initialize weights
     last_init_linear = tf.random_uniform_initializer(
-        minval=-rangefinder_range,
-        maxval=rangefinder_range
+        minval=-rangefinder_range, maxval=rangefinder_range
     )
 
     inputs = layers.Input(shape=(num_states,))
@@ -302,6 +327,7 @@ def get_critic():
 
     return model
 
+
 def policy(state: State, noise_object: OUActionNoise):
     sampled_actions = tf.squeeze(actor_model(dataclass_to_list(state)))
     print("state: ", state)
@@ -319,6 +345,7 @@ def policy(state: State, noise_object: OUActionNoise):
 
     return np.squeeze(legal_action)
 
+
 def episode_calculate_reward_metric(local_state: State) -> float:
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
@@ -326,27 +353,33 @@ def episode_calculate_reward_metric(local_state: State) -> float:
         (local_state.px - desired_pos["x"]) ** 2
         + (local_state.py - desired_pos["y"]) ** 2
         + (local_state.pz - desired_pos["z"]) ** 2
-    ) ** (1/2)
-    reward = -distance_from_desired_pos + 100 * (math.e ** (-(local_state.pz - 1) ** 2) - 1)
+    ) ** (1 / 2)
+    reward = -distance_from_desired_pos + 100 * (
+        math.e ** (-((local_state.pz - 1) ** 2)) - 1
+    )
     return reward
 
-def quaternion_to_euler_angles(qx: float, qy: float, qz: float, qw: float) -> Tuple[float, float, float]:
+
+def quaternion_to_euler_angles(
+    qx: float, qy: float, qz: float, qw: float
+) -> Tuple[float, float, float]:
     # roll (x-axis rotation)
-    sinr_cosp = 2 * (qw * qx + qy * qz);
-    cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
-    roll = math.atan2(sinr_cosp, cosr_cosp);
+    sinr_cosp = 2 * (qw * qx + qy * qz)
+    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
 
     # pitch (y-axis rotation)
-    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz));
-    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz));
-    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2;
+    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz))
+    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz))
+    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2
 
     # yaw (z-axis rotation)
-    siny_cosp = 2 * (qw * qz + qx * qy);
-    cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
-    yaw = math.atan2(siny_cosp, cosy_cosp);
+    siny_cosp = 2 * (qw * qz + qx * qy)
+    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
 
     return (roll, pitch, yaw)
+
 
 def episode_calculate_if_done(local_state: State):
     # NOTE: temporary for now, done if 10m away from goal
@@ -357,21 +390,21 @@ def episode_calculate_if_done(local_state: State):
         (local_state.px - desired_pos["x"]) ** 2
         + (local_state.py - desired_pos["y"]) ** 2
         + (local_state.pz - desired_pos["z"]) ** 2
-    ) ** (1/2)
+    ) ** (1 / 2)
     print("distance from desired position: ", distance_from_desired_pos)
     # get current angular orientation
     (roll, pitch, yaw) = quaternion_to_euler_angles(
-        local_state.qx,
-        local_state.qy,
-        local_state.qz,
-        local_state.qw
+        local_state.qx, local_state.qy, local_state.qz, local_state.qw
     )
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
-    done = (False
+    done = (
+        False
         or distance_from_desired_pos > 10.0
         or abs(roll) > math.pi
-        or abs(pitch) > math.pi)
+        or abs(pitch) > math.pi
+    )
     return done
+
 
 def episode_reset_and_grab_state():
     global state, state_mutex
@@ -395,6 +428,7 @@ def episode_reset_and_grab_state():
     state_mutex.release()
     return local_state
 
+
 def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     global state
     # coordinate systems in clover:
@@ -415,12 +449,12 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
         auto_arm=True,
     )
     # wait until target is reached
-    tolerance = 0.2 # meters
+    tolerance = 0.2  # meters
     # source: https://clover.coex.tech/en/snippets.html#navigate_wait
     while not rospy.is_shutdown():
         # get current position relative to desired position
         telem = get_telemetry(frame_id="navigate_target")
-        if math.sqrt(telem.x ** 2 + telem.y ** 2 + telem.z ** 2) < tolerance:
+        if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < tolerance:
             break
         rospy.sleep(0.2)
     state_mutex.acquire()
@@ -430,8 +464,11 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
 
+
 std_dev = 0.2
-ou_noise = OUActionNoise(mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions))
+ou_noise = OUActionNoise(
+    mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
+)
 
 actor_model = get_actor()
 critic_model = get_critic()
@@ -476,7 +513,6 @@ if launch_simulation_nodes_manually:
 service_proxies.init()
 
 for ep in range(total_episodes):
-
     prev_state = episode_reset_and_grab_state()
     episodic_reward = 0
 
