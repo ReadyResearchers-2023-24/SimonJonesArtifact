@@ -11,7 +11,7 @@ import tensorflow as tf
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
-from typing import List, Any
+from typing import List, Any, Tuple
 from dataclasses import dataclass, fields, asdict
 
 rospy.init_node("clover_train")
@@ -24,7 +24,7 @@ def count_dataclass_fields(the_dataclass) -> int:
 
 
 def dataclass_to_list(the_dataclass_instance) -> List[Any]:
-    return list(asdict(the_dataclass).values())
+    return list(asdict(the_dataclass_instance).values())
 
 
 # define state space
@@ -328,8 +328,8 @@ def get_critic():
     return model
 
 
-def policy(state: State, noise_object: OUActionNoise):
-    sampled_actions = tf.squeeze(actor_model(dataclass_to_list(state)))
+def policy(state, noise_object: OUActionNoise) -> Action:
+    sampled_actions = tf.squeeze(actor_model(state))
     print("state: ", state)
 
     # create tensor with noise
@@ -343,7 +343,7 @@ def policy(state: State, noise_object: OUActionNoise):
     # We make sure action is within bounds
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
 
-    return np.squeeze(legal_action)
+    return Action(*np.squeeze(legal_action))
 
 
 def episode_calculate_reward_metric(local_state: State) -> float:
@@ -434,6 +434,8 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # coordinate systems in clover:
     # https://clover.coex.tech/en/frames.html#coordinate-systems-frames
 
+    # FIXME: issue where actor will choose to move underground
+    # (when sitting on ground, navigating to z=-5, for example)
     # FIXME: lag in clover ROS causes this to not work
 
     print("[episode_take_action]", action)
@@ -453,7 +455,7 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # source: https://clover.coex.tech/en/snippets.html#navigate_wait
     while not rospy.is_shutdown():
         # get current position relative to desired position
-        telem = get_telemetry(frame_id="navigate_target")
+        telem = service_proxies.get_telemetry(frame_id="navigate_target")
         if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < tolerance:
             break
         rospy.sleep(0.2)
@@ -521,7 +523,7 @@ for ep in range(total_episodes):
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
         print("state0:", prev_state)
-        tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
+        tf_prev_state = tf.expand_dims(tf.convert_to_tensor(dataclass_to_list(prev_state)), 0)
 
         action = policy(tf_prev_state, ou_noise)
         print("[TRACE] policy calculated")
