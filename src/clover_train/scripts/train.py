@@ -12,34 +12,53 @@ import time
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
+from typing import List, Type, Any
+from dataclasses import dataclass, fields, asdict
 
 rospy.init_node('clover_train')
 
-num_states = 13
-px_index = 0
-py_index = 1
-pz_index = 2
-qx_index = 3
-qy_index = 4
-qz_index = 5
-qw_index = 6
-vx_index = 7
-vy_index = 8
-vz_index = 9
-wx_index = 10
-wy_index = 11
-wz_index = 12
-state = [0.0 for i in range(num_states)]
-action_keys = ["pitch", "roll", "thrust", "yaw"]
-num_actions = len(action_keys)
-pitch_min = -np.pi
-pitch_max = np.pi
-roll_min = -np.pi
-roll_max = np.pi
-thrust_min = 0.0
-thrust_max = 1.0
-yaw_min = -np.pi
-yaw_max = np.pi
+def count_dataclass_fields(the_dataclass) -> int:
+    """Count the number of fields in a dataclass."""
+    dummy_instance = the_dataclass()
+    return len([field.name for field in fields(dummy_instance)])
+
+def dataclass_to_list(the_dataclass_instance) -> List[Any]:
+    return list(asdict(the_dataclass).values())
+
+# define state space
+@dataclass
+class State:
+    px: float = 0.0
+    py: float = 0.0
+    pz: float = 0.0
+    qx: float = 0.0
+    qy: float = 0.0
+    qz: float = 0.0
+    qw: float = 0.0
+    vx: float = 0.0
+    vy: float = 0.0
+    vz: float = 0.0
+    wx: float = 0.0
+    wy: float = 0.0
+    wz: float = 0.0
+
+num_states = count_dataclass_fields(State)
+
+# initialize global state variable
+state = State()
+
+# define action space
+@dataclass
+class Action:
+    dx: float = 0.0
+    dy: float = 0.0
+    dz: float = 0.0
+
+num_actions = count_dataclass_fields(Action)
+
+rangefinder_range: float = 6.0 # meter
+action_min: float = -rangefinder_range # meter
+action_max: float = rangefinder_range # meter
 
 time_step_ms = 100
 
@@ -47,7 +66,6 @@ time_step_ms = 100
 # this omits any worries about multiple callbacks loading up to get access to the mutex
 
 # FIXME: create wrapper for subscriber/mutex combo
-# FIXME: create way to query imu data using /mavros/imu/data or /mavros/imu/data_raw topic.
 
 state_mutex = Lock()
 
@@ -71,12 +89,12 @@ def velocity_callback(velocity):
         # take mod of misses; warn every time it maxes out
         velocity_callback_mutex_misses %= max_mutex_misses_before_warning
         return
-    state[vx_index] = velocity.twist.linear.x
-    state[vy_index] = velocity.twist.linear.y
-    state[vz_index] = velocity.twist.linear.z
-    state[wx_index] = velocity.twist.angular.x
-    state[wy_index] = velocity.twist.angular.y
-    state[wz_index] = velocity.twist.angular.z
+    state.vx = velocity.twist.linear.x
+    state.vy = velocity.twist.linear.y
+    state.vz = velocity.twist.linear.z
+    state.wx = velocity.twist.angular.x
+    state.wy = velocity.twist.angular.y
+    state.wz = velocity.twist.angular.z
     state_mutex.release()
 
 def velocity_listener():
@@ -103,14 +121,14 @@ def local_position_callback(local_position):
         local_position_callback_mutex_misses %= max_mutex_misses_before_warning
         return
     # position
-    state[px_index] = local_position.pose.position.x
-    state[py_index] = local_position.pose.position.y
-    state[pz_index] = local_position.pose.position.z
+    state.px = local_position.pose.position.x
+    state.py = local_position.pose.position.y
+    state.pz = local_position.pose.position.z
     # quaternion
-    state[qx_index] = local_position.pose.orientation.x
-    state[qy_index] = local_position.pose.orientation.y
-    state[qz_index] = local_position.pose.orientation.z
-    state[qw_index] = local_position.pose.orientation.w
+    state.qx = local_position.pose.orientation.x
+    state.qy = local_position.pose.orientation.y
+    state.qz = local_position.pose.orientation.z
+    state.qw = local_position.pose.orientation.w
     state_mutex.release()
 
 def local_position_listener():
@@ -167,15 +185,15 @@ class Buffer:
         self.next_state_buffer = np.zeros((self.buffer_capacity, num_states))
 
     # Takes (s,a,r,s') obervation tuple as input
-    def record(self, obs_tuple):
+    def record(self, obs_tuple: Tuple[State, Action, float, State]):
         # Set index to zero if buffer_capacity is exceeded,
         # replacing old records
         index = self.buffer_counter % self.buffer_capacity
 
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
+        self.state_buffer[index] = dataclass_to_list(obs_tuple[0])
+        self.action_buffer[index] = dataclass_to_list(obs_tuple[1])
         self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
+        self.next_state_buffer[index] = dataclass_to_list(obs_tuple[3])
 
         self.buffer_counter += 1
 
@@ -239,24 +257,24 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    last_init_tanh = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
-    last_init_sigmoid = tf.random_uniform_initializer(minval=0.5, maxval=1.0)
+    last_init_linear = tf.random_uniform_initializer(
+        minval=-rangefinder_range,
+        maxval=rangefinder_range
+    )
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
     out = layers.Dense(256, activation="relu")(out)
-    # initialize tanh outputs for actions with range [-x,+x]
-    # initialize sigmoid outputs for actions with range [0,+x]
+    # initialize linear outputs for actions with range [+x, -x]
+    # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(2, activation="tanh", kernel_initializer=last_init_tanh)(out),
-        layers.Dense(1, activation="sigmoid", kernel_initializer=last_init_sigmoid)(out),
-        layers.Dense(1, activation="tanh", kernel_initializer=last_init_tanh)(out),
+        layers.Dense(3, activation="linear", kernel_initializer=last_init_linear)(out),
     ]
     outputs = layers.concatenate(outputs_list)
 
     # scale the outputs, given that they're coming from
     # the basis of an activation function
-    output_scale = tf.convert_to_tensor([pitch_max, roll_max, thrust_max, yaw_max])
+    output_scale = tf.convert_to_tensor([action_max, action_max, action_max])
     outputs = tf.math.multiply(outputs, output_scale)
     model = tf.keras.Model(inputs, outputs)
     return model
@@ -284,8 +302,8 @@ def get_critic():
 
     return model
 
-def policy(state, noise_object):
-    sampled_actions = tf.squeeze(actor_model(state))
+def policy(state: State, noise_object: OUActionNoise):
+    sampled_actions = tf.squeeze(actor_model(dataclass_to_list(state)))
     print("state: ", state)
 
     # create tensor with noise
@@ -293,26 +311,26 @@ def policy(state, noise_object):
 
     # Adding noise to action
     sampled_actions = sampled_actions.numpy() + noise_array
-    lower_bounds = [pitch_min, roll_min, thrust_min, yaw_min]
-    upper_bounds = [pitch_max, roll_max, thrust_max, yaw_max]
+    lower_bounds = [action_min, action_min, action_min]
+    upper_bounds = [action_max, action_max, action_max]
 
     # We make sure action is within bounds
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
 
     return np.squeeze(legal_action)
 
-def episode_calculate_reward_metric(local_state):
+def episode_calculate_reward_metric(local_state: State) -> float:
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
     distance_from_desired_pos = (
-        (local_state[px_index] - desired_pos["x"]) ** 2
-        + (local_state[py_index] - desired_pos["y"]) ** 2
-        + (local_state[pz_index] - desired_pos["z"]) ** 2
+        (local_state.px - desired_pos["x"]) ** 2
+        + (local_state.py - desired_pos["y"]) ** 2
+        + (local_state.pz - desired_pos["z"]) ** 2
     ) ** (1/2)
-    reward = -distance_from_desired_pos + 100 * (math.e ** (-(local_state[2] - 1) ** 2) - 1)
+    reward = -distance_from_desired_pos + 100 * (math.e ** (-(local_state.pz - 1) ** 2) - 1)
     return reward
 
-def quaternion_to_euler_angles(qx, qy, qz, qw):
+def quaternion_to_euler_angles(qx: float, qy: float, qz: float, qw: float) -> Tuple[float, float, float]:
     # roll (x-axis rotation)
     sinr_cosp = 2 * (qw * qx + qy * qz);
     cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
@@ -330,23 +348,23 @@ def quaternion_to_euler_angles(qx, qy, qz, qw):
 
     return (roll, pitch, yaw)
 
-def episode_calculate_if_done(local_state):
+def episode_calculate_if_done(local_state: State):
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
     print("[episode_calculate_if_done] trying to acquire mutex...")
     print("[episode_calculate_if_done] mutex acquired!")
     distance_from_desired_pos = (
-        (local_state[0] - desired_pos["x"]) ** 2
-        + (local_state[1] - desired_pos["y"]) ** 2
-        + (local_state[2] - desired_pos["z"]) ** 2
+        (local_state.px - desired_pos["x"]) ** 2
+        + (local_state.py - desired_pos["y"]) ** 2
+        + (local_state.pz - desired_pos["z"]) ** 2
     ) ** (1/2)
     print("distance from desired position: ", distance_from_desired_pos)
     # get current angular orientation
     (roll, pitch, yaw) = quaternion_to_euler_angles(
-        local_state[qx_index],
-        local_state[qy_index],
-        local_state[qz_index],
-        local_state[qw_index]
+        local_state.qx,
+        local_state.qy,
+        local_state.qz,
+        local_state.qw
     )
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
     done = (False
@@ -377,18 +395,34 @@ def episode_reset_and_grab_state():
     state_mutex.release()
     return local_state
 
-def episode_take_action(action):
+def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     global state
+    # coordinate systems in clover:
+    # https://clover.coex.tech/en/frames.html#coordinate-systems-frames
+
     # FIXME: lag in clover ROS causes this to not work
-    # zip action keys with action numbers calculated from the policy
-    # into a dict to provide to `set_attitude`
-    action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
-    print(action_dict)
-    service_proxies.set_attitude(auto_arm=True, **action_dict)
-    # FIXME: wait time_step and get state
-    telemetry_class = service_proxies.get_telemetry()
-    # pull out parts of the state
-    # that we want to know from telemetry
+
+    print("[episode_take_action]", action)
+    # navigate a distance relative to the quadcopter's frame
+    # The 'body' frame remains upright regardless of
+    # the quadcopter's orientation.
+    service_proxies.navigate(
+        x=action.dx,
+        y=action.dy,
+        z=action.dz,
+        speed=1,
+        frame_id="body",
+        auto_arm=True,
+    )
+    # wait until target is reached
+    tolerance = 0.2 # meters
+    # source: https://clover.coex.tech/en/snippets.html#navigate_wait
+    while not rospy.is_shutdown():
+        # get current position relative to desired position
+        telem = get_telemetry(frame_id="navigate_target")
+        if math.sqrt(telem.x ** 2 + telem.y ** 2 + telem.z ** 2) < tolerance:
+            break
+        rospy.sleep(0.2)
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
@@ -458,11 +492,6 @@ for ep in range(total_episodes):
         # Recieve state and reward from environment.
         local_state, reward, done = episode_take_action(action)
         print("[TRACE] action taken")
-
-        # skip if reward is not a number (this is ROS clover's fault)
-        if (math.isnan(reward)):
-            print("nan reward detected; skipping...")
-            continue
 
         buffer.record((prev_state, action, reward, local_state))
         episodic_reward += reward
