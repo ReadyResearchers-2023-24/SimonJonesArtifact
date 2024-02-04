@@ -337,7 +337,7 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
     # Adding noise to action
     sampled_actions = sampled_actions.numpy() + noise_array
-    lower_bounds = [action_min, action_min, action_min]
+    lower_bounds = [action_min, action_min, 0]  # FIXME: z min is zero until drone does better.
     upper_bounds = [action_max, action_max, action_max]
 
     # We make sure action is within bounds
