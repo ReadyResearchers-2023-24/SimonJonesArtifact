@@ -414,7 +414,7 @@ def episode_calculate_if_done(local_state: State):
 def wait_until_disarmed() -> None:
     rospy.loginfo("[wait_until_disarmed] entered")
     while not rospy.is_shutdown():
-        mavros_state = rospy.wait_for_message('mavros/state', mavros_msg.State)
+        mavros_state = rospy.wait_for_message("mavros/state", mavros_msg.State)
         if mavros_state.armed == False:
             rospy.loginfo("[wait_until_disarmed] leaving")
             break
@@ -486,16 +486,24 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
 def calibrate_accelerometers() -> None:
     # https://mavlink.io/en/messages/common.html#MAV_CMD_PREFLIGHT_CALIBRATION
     rospy.loginfo("[calibrate_accelerometers]")
-    if not service_proxies.mavros_command(command=mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, param5=4).success:
+    if not service_proxies.mavros_command(
+        command=mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, param5=4
+    ).success:
         return False
 
     calibrating = False
     while not rospy.is_shutdown():
-        mavros_state = rospy.wait_for_message('mavros/state', mavros_msg.State)
-        if mavros_state.system_status == mavutil.mavlink.MAV_STATE_CALIBRATING or mavros_state.system_status == mavutil.mavlink.MAV_STATE_UNINIT:
+        mavros_state = rospy.wait_for_message("mavros/state", mavros_msg.State)
+        if (
+            mavros_state.system_status == mavutil.mavlink.MAV_STATE_CALIBRATING
+            or mavros_state.system_status == mavutil.mavlink.MAV_STATE_UNINIT
+        ):
             calibrating = True
-        elif calibrating and mavros_state.system_status == mavutil.mavlink.MAV_STATE_STANDBY:
-            rospy.loginfo('Calibrating finished')
+        elif (
+            calibrating
+            and mavros_state.system_status == mavutil.mavlink.MAV_STATE_STANDBY
+        ):
+            rospy.loginfo("Calibrating finished")
             return True
 
 
@@ -554,7 +562,9 @@ for ep in range(total_episodes):
     # this is handled by ROS to ensure consistent steps
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
-        tf_prev_state = tf.expand_dims(tf.convert_to_tensor(dataclass_to_list(prev_state)), 0)
+        tf_prev_state = tf.expand_dims(
+            tf.convert_to_tensor(dataclass_to_list(prev_state)), 0
+        )
 
         action = policy(tf_prev_state, ou_noise)
         print("[TRACE] policy calculated")
