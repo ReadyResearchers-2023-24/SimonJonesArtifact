@@ -1,3 +1,5 @@
+import math
+
 from typing import List, Any, Tuple
 from dataclasses import dataclass, fields, asdict
 
@@ -6,9 +8,10 @@ def convert_spherical_to_cartesian(
     r: float, theta: float, phi: float
 ) -> Tuple[float, float, float]:
     """Convert spherical coordinates to cartesian coordinates."""
-    x: float = r * math.sin(theta) * math.cos(phi),
-    y: float = r * math.sin(theta) * math.sin(phi),
-    z: float = r * math.cos(theta),
+    x: float = r * math.sin(theta) * math.cos(phi)
+    y: float = r * math.sin(theta) * math.sin(phi)
+    z: float = r * math.cos(theta)
+    print(f"(x, y, z): {x} {y} {z}")
     return (x, y, z)
 
 

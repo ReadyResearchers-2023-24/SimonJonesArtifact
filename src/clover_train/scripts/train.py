@@ -289,7 +289,7 @@ def update_target(target_weights, weights, tau):
 def get_actor():
     # Initialize weights
     last_init_relu = tf.random_uniform_initializer(
-        minval=-rangefinder_range, maxval=rangefinder_range
+        minval=0, maxval=1
     )
 
     inputs = layers.Input(shape=(num_states,))
@@ -392,11 +392,15 @@ def episode_calculate_if_done(local_state: State):
     return done
 
 
+def is_armed() -> bool:
+    mavros_state = rospy.wait_for_message("mavros/state", mavros_msg.State)
+    return mavros_state.armed
+
+
 def wait_until_disarmed() -> None:
     rospy.loginfo("[wait_until_disarmed] entered")
     while not rospy.is_shutdown():
-        mavros_state = rospy.wait_for_message("mavros/state", mavros_msg.State)
-        if mavros_state.armed == False:
+        if not is_armed():
             rospy.loginfo("[wait_until_disarmed] leaving")
             break
 
@@ -410,9 +414,9 @@ def force_disarm() -> None:
 
 
 def episode_reset_and_grab_state():
-    global state, state_mutex
-    service_proxies.land()
-    wait_until_disarmed()
+    if is_armed():
+        service_proxies.land()
+        wait_until_disarmed()
     service_proxies.reset_world()
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
@@ -435,7 +439,7 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
         y=y,
         z=z,
         speed=1,
-        frame_id="",
+        frame_id="body",
         auto_arm=True,
     )
     # wait until target is reached
@@ -449,7 +453,7 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
         if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < action_movement_threshold:
             break
         # if timeout passes and we're not at desired point, take new action and take hit to reward
-        if rospy.get_rostime().secs - timeout > 10:
+        if rospy.get_rostime().secs - t0 > timeout:
             timeout_passed = True
             break
         rospy.sleep(0.2)
