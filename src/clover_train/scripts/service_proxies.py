@@ -2,8 +2,8 @@
 
 import rospy
 
-from clover import srv
-from mavros_msgs.srv import CommandBool, CommandLong
+from clover import srv as clover_srv
+from mavros_msgs.srv import CommandLong
 from std_srvs.srv import Empty
 from std_srvs.srv import Trigger
 from gazebo_msgs.srv import GetModelState, SpawnModel
@@ -27,17 +27,17 @@ def init():
     # wait for /gazebo/reset_world to become available
     rospy.wait_for_service("/gazebo/reset_world")
     # https://github.com/CopterExpress/clover/blob/master/clover/srv/GetTelemetry.srv
-    globals()["get_telemetry"] = rospy.ServiceProxy("get_telemetry", srv.GetTelemetry)
+    globals()["get_telemetry"] = rospy.ServiceProxy("get_telemetry", clover_srv.GetTelemetry)
     globals()["land"] = rospy.ServiceProxy("land", Trigger)
     globals()["mavros_command"] = rospy.ServiceProxy("/mavros/cmd/command", CommandLong)
-    globals()["navigate"] = rospy.ServiceProxy("navigate", srv.Navigate)
+    globals()["navigate"] = rospy.ServiceProxy("navigate", clover_srv.Navigate)
     globals()["navigate_global"] = rospy.ServiceProxy(
-        "navigate_global", srv.NavigateGlobal
+        "navigate_global", clover_srv.NavigateGlobal
     )
     globals()["pause_physics"] = rospy.ServiceProxy("/gazebo/pause_physics", Empty)
     globals()["reset_world"] = rospy.ServiceProxy("/gazebo/reset_world", Empty)
-    globals()["set_attitude"] = rospy.ServiceProxy("set_attitude", srv.SetAttitude)
-    globals()["set_position"] = rospy.ServiceProxy("set_position", srv.SetPosition)
-    globals()["set_rates"] = rospy.ServiceProxy("set_rates", srv.SetRates)
-    globals()["set_velocity"] = rospy.ServiceProxy("set_velocity", srv.SetVelocity)
+    globals()["set_attitude"] = rospy.ServiceProxy("set_attitude", clover_srv.SetAttitude)
+    globals()["set_position"] = rospy.ServiceProxy("set_position", clover_srv.SetPosition)
+    globals()["set_rates"] = rospy.ServiceProxy("set_rates", clover_srv.SetRates)
+    globals()["set_velocity"] = rospy.ServiceProxy("set_velocity", clover_srv.SetVelocity)
     globals()["unpause_physics"] = rospy.ServiceProxy("/gazebo/unpause_physics", Empty)
