@@ -7,3 +7,4 @@ temp/
 deleteme/
 __pycache__/
 devel/
+.mypy_cache/
