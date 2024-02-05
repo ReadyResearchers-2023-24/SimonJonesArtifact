@@ -8,6 +8,7 @@ import service_proxies
 import simulation_nodes
 import time
 import tensorflow as tf
+import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
@@ -18,16 +19,6 @@ from pymavlink import mavutil
 from mavros_msgs import msg as mavros_msg
 
 rospy.init_node("clover_train")
-
-
-def count_dataclass_fields(the_dataclass) -> int:
-    """Count the number of fields in a dataclass."""
-    dummy_instance = the_dataclass()
-    return len([field.name for field in fields(dummy_instance)])
-
-
-def dataclass_to_list(the_dataclass_instance) -> List[Any]:
-    return list(asdict(the_dataclass_instance).values())
 
 
 # define state space
@@ -48,25 +39,36 @@ class State:
     wz: float = 0.0
 
 
-num_states = count_dataclass_fields(State)
+num_states = util.count_dataclass_fields(State)
 
 # initialize global state variable
 state = State()
 
 
-# define action space
+# define action space as spherical coordinate system about body
 @dataclass
 class Action:
-    dx: float = 0.0
-    dy: float = 0.0
-    dz: float = 0.0
+    r: float = 0.0  # distance measured from origin
+    theta: float = 0.0  # angle measured from +z axis toward z=0 plane
+    phi: float = 0.0  # angle measured from +x axis right handedly about z axis
 
 
-num_actions = count_dataclass_fields(Action)
+num_actions = util.count_dataclass_fields(Action)
 
 rangefinder_range: float = 6.0  # meter
-action_min: float = -rangefinder_range  # meter
-action_max: float = rangefinder_range  # meter
+
+# threshold for deciding when drone has reached desired position
+action_movement_threshold: float = 0.1 # meter
+
+# range of action space (to be used to scale action tensors)
+# move at least twice the detection threshold for movement
+action_r_min: float = action_movement_threshold * 2  # meter
+action_theta_min: float = 0  # radian
+action_phi_min: float = 0  # radian
+
+action_r_max: float = rangefinder_range  # meter
+action_theta_max: float = math.pi  # radian
+action_phi_max: float = 2 * math.pi  # radian
 
 time_step_ms = 100
 
@@ -214,10 +216,10 @@ class Buffer:
         # replacing old records
         index = self.buffer_counter % self.buffer_capacity
 
-        self.state_buffer[index] = dataclass_to_list(obs_tuple[0])
-        self.action_buffer[index] = dataclass_to_list(obs_tuple[1])
+        self.state_buffer[index] = util.dataclass_to_list(obs_tuple[0])
+        self.action_buffer[index] = util.dataclass_to_list(obs_tuple[1])
         self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = dataclass_to_list(obs_tuple[3])
+        self.next_state_buffer[index] = util.dataclass_to_list(obs_tuple[3])
 
         self.buffer_counter += 1
 
@@ -286,23 +288,23 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    last_init_linear = tf.random_uniform_initializer(
+    last_init_relu = tf.random_uniform_initializer(
         minval=-rangefinder_range, maxval=rangefinder_range
     )
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
     out = layers.Dense(256, activation="relu")(out)
-    # initialize linear outputs for actions with range [+x, -x]
+    # initialize relu outputs for actions with range [0, x]
     # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(3, activation="linear", kernel_initializer=last_init_linear)(out),
+        layers.Dense(3, activation="relu", kernel_initializer=last_init_relu)(out),
     ]
     outputs = layers.concatenate(outputs_list)
 
     # scale the outputs, given that they're coming from
     # the basis of an activation function
-    output_scale = tf.convert_to_tensor([action_max, action_max, action_max])
+    output_scale = tf.convert_to_tensor([action_r_max, action_theta_max, action_phi_max])
     outputs = tf.math.multiply(outputs, output_scale)
     model = tf.keras.Model(inputs, outputs)
     return model
@@ -340,8 +342,8 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
     # Adding noise to action
     sampled_actions = sampled_actions.numpy() + noise_array
-    lower_bounds = [action_min, action_min, action_min]
-    upper_bounds = [action_max, action_max, action_max]
+    lower_bounds = [action_r_min, action_theta_min, action_phi_min]
+    upper_bounds = [action_r_max, action_theta_max, action_phi_max]
 
     # We make sure action is within bounds
     legal_action = np.clip(sampled_actions, lower_bounds, upper_bounds)
@@ -365,27 +367,6 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) ->
     return reward
 
 
-def quaternion_to_euler_angles(
-    qx: float, qy: float, qz: float, qw: float
-) -> Tuple[float, float, float]:
-    # roll (x-axis rotation)
-    sinr_cosp = 2 * (qw * qx + qy * qz)
-    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
-    roll = math.atan2(sinr_cosp, cosr_cosp)
-
-    # pitch (y-axis rotation)
-    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz))
-    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz))
-    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2
-
-    # yaw (z-axis rotation)
-    siny_cosp = 2 * (qw * qz + qx * qy)
-    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
-    yaw = math.atan2(siny_cosp, cosy_cosp)
-
-    return (roll, pitch, yaw)
-
-
 def episode_calculate_if_done(local_state: State):
     # NOTE: temporary for now, done if 10m away from goal
     desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
@@ -398,7 +379,7 @@ def episode_calculate_if_done(local_state: State):
     ) ** (1 / 2)
     print("distance from desired position: ", distance_from_desired_pos)
     # get current angular orientation
-    (roll, pitch, yaw) = quaternion_to_euler_angles(
+    (roll, pitch, yaw) = util.quaternion_to_euler_angles(
         local_state.qx, local_state.qy, local_state.qz, local_state.qw
     )
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
@@ -441,10 +422,6 @@ def episode_reset_and_grab_state():
 
 def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     global state
-    tolerance = 0.2  # meters
-    # FIXME: take action at minimum of tolerance away from current position in
-    # order to motivate drone to move in new position with each action
-
     # coordinate systems in clover:
     # https://clover.coex.tech/en/frames.html#coordinate-systems-frames
 
@@ -452,10 +429,11 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # navigate a distance relative to the quadcopter's frame
     # The 'body' frame remains upright regardless of
     # the quadcopter's orientation.
+    (x, y, z) = util.convert_spherical_to_cartesian(action.r, action.theta, action.phi)
     service_proxies.navigate(
-        x=action.dx,
-        y=action.dy,
-        z=action.dz,
+        x=x,
+        y=y,
+        z=z,
         speed=1,
         frame_id="",
         auto_arm=True,
@@ -468,7 +446,7 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     while not rospy.is_shutdown():
         # get current position relative to desired position
         telem = service_proxies.get_telemetry(frame_id="navigate_target")
-        if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < tolerance:
+        if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < action_movement_threshold:
             break
         # if timeout passes and we're not at desired point, take new action and take hit to reward
         if rospy.get_rostime().secs - timeout > 10:
@@ -555,7 +533,7 @@ if launch_simulation_nodes_manually:
 service_proxies.init()
 
 for ep in range(total_episodes):
-    prev_state = episode_reset_and_grab_state()
+    prev_state: State = episode_reset_and_grab_state()
     episodic_reward = 0
 
     # set loop rate of 100Hz
@@ -563,7 +541,7 @@ for ep in range(total_episodes):
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
         tf_prev_state = tf.expand_dims(
-            tf.convert_to_tensor(dataclass_to_list(prev_state)), 0
+            tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
         )
 
         action = policy(tf_prev_state, ou_noise)
