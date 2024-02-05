@@ -1,0 +1,6 @@
+[submodule "src/clover"]
+	path = src/clover
+	url = https://github.com/simojo/clover-tof-sensors-modded
+[submodule "src/mav_comm"]
+	path = src/mav_comm
+	url = https://github.com/ethz-asl/mav_comm
