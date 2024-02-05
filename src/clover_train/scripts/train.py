@@ -13,7 +13,7 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
 
-rospy.init_node('clover_train')
+rospy.init_node("clover_train")
 
 num_states = 13
 px_index = 0
@@ -52,12 +52,18 @@ time_step_ms = 100
 state_mutex = Lock()
 
 max_mutex_misses_before_warning = 10
+
+
 def warn_if_too_many_mutex_misses(mutex_misses):
     if mutex_misses > max_mutex_misses_before_warning:
-        rospy.logerr(f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times")
+        rospy.logerr(
+            f"callback has failed to acquire mutex more than {max_mutex_misses_before_warning} times"
+        )
+
 
 # times the callback failed to acquire the mutex
 velocity_callback_mutex_misses = 0
+
 
 def velocity_callback(velocity):
     global velocity_callback_mutex_misses
@@ -79,16 +85,21 @@ def velocity_callback(velocity):
     state[wz_index] = velocity.twist.angular.z
     state_mutex.release()
 
+
 def velocity_listener():
     # subscribe to mavros's pose topic
-    rospy.Subscriber('/mavros/local_position/velocity_local', TwistStamped, velocity_callback)
+    rospy.Subscriber(
+        "/mavros/local_position/velocity_local", TwistStamped, velocity_callback
+    )
     rospy.spin()
+
 
 velocity_thread = Thread(target=velocity_listener, args=())
 velocity_thread.start()
 
 # times the callback failed to acquire the mutex
 local_position_callback_mutex_misses = 0
+
 
 def local_position_callback(local_position):
     global local_position_callback_mutex_misses
@@ -113,13 +124,18 @@ def local_position_callback(local_position):
     state[qw_index] = local_position.pose.orientation.w
     state_mutex.release()
 
+
 def local_position_listener():
     # subscribe to mavros's pose topic
-    rospy.Subscriber('/mavros/local_position/pose', PoseStamped, local_position_callback)
+    rospy.Subscriber(
+        "/mavros/local_position/pose", PoseStamped, local_position_callback
+    )
     rospy.spin()
+
 
 local_position_thread = Thread(target=local_position_listener, args=())
 local_position_thread.start()
+
 
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
@@ -184,7 +200,11 @@ class Buffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-        self, state_batch, action_batch, reward_batch, next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -234,8 +254,9 @@ class Buffer:
 # Based on rate `tau`, which is much less than one.
 @tf.function
 def update_target(target_weights, weights, tau):
-    for (a, b) in zip(target_weights, weights):
+    for a, b in zip(target_weights, weights):
         a.assign(b * tau + a * (1 - tau))
+
 
 def get_actor():
     # Initialize weights
@@ -249,7 +270,9 @@ def get_actor():
     # initialize sigmoid outputs for actions with range [0,+x]
     outputs_list = [
         layers.Dense(2, activation="tanh", kernel_initializer=last_init_tanh)(out),
-        layers.Dense(1, activation="sigmoid", kernel_initializer=last_init_sigmoid)(out),
+        layers.Dense(1, activation="sigmoid", kernel_initializer=last_init_sigmoid)(
+            out
+        ),
         layers.Dense(1, activation="tanh", kernel_initializer=last_init_tanh)(out),
     ]
     outputs = layers.concatenate(outputs_list)
@@ -284,6 +307,7 @@ def get_critic():
 
     return model
 
+
 def policy(state, noise_object):
     sampled_actions = tf.squeeze(actor_model(state))
     print("state: ", state)
@@ -301,6 +325,7 @@ def policy(state, noise_object):
 
     return np.squeeze(legal_action)
 
+
 def episode_calculate_reward_metric(local_state):
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
@@ -308,27 +333,28 @@ def episode_calculate_reward_metric(local_state):
         (local_state[px_index] - desired_pos["x"]) ** 2
         + (local_state[py_index] - desired_pos["y"]) ** 2
         + (local_state[pz_index] - desired_pos["z"]) ** 2
-    ) ** (1/2)
-    reward = -distance_from_desired_pos + 100 * (math.e ** (-(local_state[2] - 1) ** 2) - 1)
+    ) ** (1 / 2)
+    reward = -distance_from_desired_pos + 100 * (
+        math.e ** (-((local_state[2] - 1) ** 2)) - 1
+    )
     return reward
+
 
 def quaternion_to_euler_angles(qx, qy, qz, qw):
     # roll (x-axis rotation)
-    sinr_cosp = 2 * (qw * qx + qy * qz);
-    cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
-    roll = math.atan2(sinr_cosp, cosr_cosp);
-
+    sinr_cosp = 2 * (qw * qx + qy * qz)
+    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
     # pitch (y-axis rotation)
-    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz));
-    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz));
-    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2;
-
+    sinp = math.sqrt(1 + 2 * (qw * qy - qx * qz))
+    cosp = math.sqrt(1 - 2 * (qw * qy - qx * qz))
+    pitch = 2 * math.atan2(sinp, cosp) - math.pi / 2
     # yaw (z-axis rotation)
-    siny_cosp = 2 * (qw * qz + qx * qy);
-    cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
-    yaw = math.atan2(siny_cosp, cosy_cosp);
-
+    siny_cosp = 2 * (qw * qz + qx * qy)
+    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
     return (roll, pitch, yaw)
+
 
 def episode_calculate_if_done(local_state):
     # NOTE: temporary for now, done if 10m away from goal
@@ -339,21 +365,24 @@ def episode_calculate_if_done(local_state):
         (local_state[0] - desired_pos["x"]) ** 2
         + (local_state[1] - desired_pos["y"]) ** 2
         + (local_state[2] - desired_pos["z"]) ** 2
-    ) ** (1/2)
+    ) ** (1 / 2)
     print("distance from desired position: ", distance_from_desired_pos)
     # get current angular orientation
     (roll, pitch, yaw) = quaternion_to_euler_angles(
         local_state[qx_index],
         local_state[qy_index],
         local_state[qz_index],
-        local_state[qw_index]
+        local_state[qw_index],
     )
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
-    done = (False
+    done = (
+        False
         or distance_from_desired_pos > 10.0
         or abs(roll) > (math.pi / 2)
-        or abs(pitch) > (math.pi / 2))
+        or abs(pitch) > (math.pi / 2)
+    )
     return done
+
 
 def episode_reset_and_grab_state():
     # set quadcopter attitude to initial state
@@ -375,11 +404,14 @@ def episode_reset_and_grab_state():
     state_mutex.release()
     return local_state
 
+
 def episode_take_action(action):
     # FIXME: lag in clover ROS causes this to not work
     # zip action keys with action numbers calculated from the policy
     # into a dict to provide to `set_attitude`
-    action_dict = dict(map(lambda i: (action_keys[i], action[i]), range(len(action_keys))))
+    action_dict = dict(
+        map(lambda i: (action_keys[i], action[i]), range(len(action_keys)))
+    )
     print(action_dict)
     service_proxies.set_attitude(auto_arm=True, **action_dict)
     # FIXME: wait time_step and get state
@@ -392,8 +424,11 @@ def episode_take_action(action):
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
 
+
 std_dev = 0.2
-ou_noise = OUActionNoise(mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions))
+ou_noise = OUActionNoise(
+    mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
+)
 
 actor_model = get_actor()
 critic_model = get_critic()
@@ -438,7 +473,6 @@ if launch_simulation_nodes_manually:
 service_proxies.init()
 
 for ep in range(total_episodes):
-
     prev_state = episode_reset_and_grab_state()
     episodic_reward = 0
 
@@ -456,7 +490,7 @@ for ep in range(total_episodes):
         print("[TRACE] action taken")
 
         # skip if reward is not a number (this is ROS clover's fault)
-        if (math.isnan(reward)):
+        if math.isnan(reward):
             print("nan reward detected; skipping...")
             continue
 
