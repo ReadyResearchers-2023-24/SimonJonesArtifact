@@ -6,6 +6,7 @@ import numpy as np
 import rospy
 import service_proxies
 import simulation_nodes
+import time
 import tensorflow as tf
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
@@ -13,6 +14,8 @@ from tensorflow.keras import layers
 from threading import Lock, Thread
 from typing import List, Any, Tuple
 from dataclasses import dataclass, fields, asdict
+from pymavlink import mavutil
+from mavros_msgs import msg as mavros_msg
 
 rospy.init_node("clover_train")
 
@@ -337,7 +340,7 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
     # Adding noise to action
     sampled_actions = sampled_actions.numpy() + noise_array
-    lower_bounds = [action_min, action_min, 0]  # FIXME: z min is zero until drone does better.
+    lower_bounds = [action_min, action_min, action_min]
     upper_bounds = [action_max, action_max, action_max]
 
     # We make sure action is within bounds
@@ -346,7 +349,7 @@ def policy(state, noise_object: OUActionNoise) -> Action:
     return Action(*np.squeeze(legal_action))
 
 
-def episode_calculate_reward_metric(local_state: State) -> float:
+def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) -> float:
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
     distance_from_desired_pos = (
@@ -357,6 +360,8 @@ def episode_calculate_reward_metric(local_state: State) -> float:
     reward = -distance_from_desired_pos + 100 * (
         math.e ** (-((local_state.pz - 1) ** 2)) - 1
     )
+    if timeout_passed:
+        reward -= 1000
     return reward
 
 
@@ -406,23 +411,28 @@ def episode_calculate_if_done(local_state: State):
     return done
 
 
+def wait_until_disarmed() -> None:
+    rospy.loginfo("[wait_until_disarmed] entered")
+    while not rospy.is_shutdown():
+        mavros_state = rospy.wait_for_message('mavros/state', mavros_msg.State)
+        if mavros_state.armed == False:
+            rospy.loginfo("[wait_until_disarmed] leaving")
+            break
+
+
+def force_disarm() -> None:
+    service_proxies.mavros_command(
+        command=mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+        param1=0,  # disarm
+        param2=21196,  # force
+    )
+
+
 def episode_reset_and_grab_state():
     global state, state_mutex
-    # set quadcopter attitude to initial state
-    # https://docs.ros.org/en/melodic/api/clover/html/srv/SetAttitude.html
-    service_proxies.set_attitude(pitch=0, roll=0, yaw=0, thrust=0, auto_arm=True)
-    # FIXME: wrap this if it works
-    # force disarm the quadcopter
-    service_proxies.mavros_command(
-        broadcast=False,
-        command=400,
-        confirmation=0,
-        param2=21196,
-    )
+    service_proxies.land()
+    wait_until_disarmed()
     service_proxies.reset_world()
-    telemetry_class = service_proxies.get_telemetry()
-    # pull out parts of the state
-    # that we want to know from telemetry
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
@@ -431,12 +441,12 @@ def episode_reset_and_grab_state():
 
 def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     global state
+    tolerance = 0.2  # meters
+    # FIXME: take action at minimum of tolerance away from current position in
+    # order to motivate drone to move in new position with each action
+
     # coordinate systems in clover:
     # https://clover.coex.tech/en/frames.html#coordinate-systems-frames
-
-    # FIXME: issue where actor will choose to move underground
-    # (when sitting on ground, navigating to z=-5, for example)
-    # FIXME: lag in clover ROS causes this to not work
 
     print("[episode_take_action]", action)
     # navigate a distance relative to the quadcopter's frame
@@ -447,24 +457,46 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
         y=action.dy,
         z=action.dz,
         speed=1,
-        frame_id="body",
+        frame_id="",
         auto_arm=True,
     )
     # wait until target is reached
-    tolerance = 0.2  # meters
+    t0 = rospy.get_rostime().secs
+    timeout = 10  # seconds
+    timeout_passed: bool = False
     # source: https://clover.coex.tech/en/snippets.html#navigate_wait
     while not rospy.is_shutdown():
         # get current position relative to desired position
         telem = service_proxies.get_telemetry(frame_id="navigate_target")
         if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < tolerance:
             break
+        # if timeout passes and we're not at desired point, take new action and take hit to reward
+        if rospy.get_rostime().secs - timeout > 10:
+            timeout_passed = True
+            break
         rospy.sleep(0.2)
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
-    reward = episode_calculate_reward_metric(local_state)
+    reward = episode_calculate_reward_metric(local_state, timeout_passed)
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
+
+
+def calibrate_accelerometers() -> None:
+    # https://mavlink.io/en/messages/common.html#MAV_CMD_PREFLIGHT_CALIBRATION
+    rospy.loginfo("[calibrate_accelerometers]")
+    if not service_proxies.mavros_command(command=mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, param5=4).success:
+        return False
+
+    calibrating = False
+    while not rospy.is_shutdown():
+        mavros_state = rospy.wait_for_message('mavros/state', mavros_msg.State)
+        if mavros_state.system_status == mavutil.mavlink.MAV_STATE_CALIBRATING or mavros_state.system_status == mavutil.mavlink.MAV_STATE_UNINIT:
+            calibrating = True
+        elif calibrating and mavros_state.system_status == mavutil.mavlink.MAV_STATE_STANDBY:
+            rospy.loginfo('Calibrating finished')
+            return True
 
 
 std_dev = 0.2
@@ -522,7 +554,6 @@ for ep in range(total_episodes):
     # this is handled by ROS to ensure consistent steps
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
-        print("state0:", prev_state)
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(dataclass_to_list(prev_state)), 0)
 
         action = policy(tf_prev_state, ou_noise)
