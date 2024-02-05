@@ -372,7 +372,9 @@ for info from VirtualBox.
 * Otherwise, you can now run VirtualBox
 
   ```sh
-  virtualbox
+  VirtualBox
+  # or
+  VirtualBoxVM --startvm <vm-name>
   ```
 
 ### Using `clover_vm` for simulating Clover
@@ -400,7 +402,7 @@ getting started simulating clover. The documentation can be found
 * Launch `virtualbox`
 
   ```sh
-  virtualbox
+  VirtualBoxVM --startvm clover-devel
   ```
 
 * Select the image named **clover-devel**.
@@ -429,6 +431,12 @@ getting started simulating clover. The documentation can be found
   expected behavior is that the drone takes off, moves one meter horizontally,
   and lands again.
 * Now you've demonstrated that your system can simulate the Clover!
+
+#### `clover_vm` - Setting up `clover_train`
+
+```sh
+# FIXME
+```
 
 ### Installing Docker - Ubuntu 22.04
 
