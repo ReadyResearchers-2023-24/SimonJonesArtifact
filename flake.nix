@@ -8,8 +8,9 @@
     {
       devShells.x86_64-linux.default = pkgs.mkShell {
         packages = [
-          pkgs.sshfs
           pkgs.blender
+          pkgs.meshlab
+          pkgs.sshfs
         ];
       };
   };
