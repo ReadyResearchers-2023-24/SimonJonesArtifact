@@ -17,6 +17,7 @@ from typing import List, Any, Tuple
 from dataclasses import dataclass, fields, asdict
 from pymavlink import mavutil
 from mavros_msgs import msg as mavros_msg
+from sensor_msgs import msg as sensor_msg
 
 rospy.init_node("clover_train")
 
@@ -37,6 +38,16 @@ class State:
     wx: float = 0.0
     wy: float = 0.0
     wz: float = 0.0
+    range_0: float = 0.0
+    range_1: float = 0.0
+    range_2: float = 0.0
+    range_3: float = 0.0
+    range_4: float = 0.0
+    range_5: float = 0.0
+    range_6: float = 0.0
+    range_7: float = 0.0
+    range_8: float = 0.0
+    range_9: float = 0.0
 
 
 num_states = util.count_dataclass_fields(State)
@@ -163,6 +174,44 @@ def local_position_listener():
 
 local_position_thread = Thread(target=local_position_listener, args=())
 local_position_thread.start()
+
+
+# times the callback failed to acquire the mutex
+rangefinder_callback_mutex_misses = 0
+
+
+# FIXME: maybe use separate cpp module to transform range to be along the body frame?
+# FIXME: maybe transform range measurements here?
+def rangefinder_i_callback(i):
+    def rangefinder_callback(range):
+        global rangefinder_callback_mutex_misses
+        mutex_acquired = state_mutex.acquire(blocking=False)
+        # Quickly terminate if mutex was not acquired. This is banking on the fact
+        # that ros does not allow multiple instances of the same callback function.
+        # Otherwise, we would have to use atomic types.
+        if not mutex_acquired:
+            rangefinder_callback_mutex_misses += 1
+            warn_if_too_many_mutex_misses(rangefinder_callback_mutex_misses)
+            # take mod of misses; warn every time it maxes out
+            rangefinder_callback_mutex_misses %= max_mutex_misses_before_warning
+            return
+        # set current range attribute on state
+        setattr(state, f"range_{i}", range.range)
+        state_mutex.release()
+    return rangefinder_callback
+
+
+def rangefinder_listener():
+    # subscribe to mavros's pose topic
+    for i in range(10):
+      rospy.Subscriber(
+          f"/rangefinder_{i}/range", sensor_msg.Range, rangefinder_i_callback(i)
+      )
+    rospy.spin()
+
+
+rangefinder_thread = Thread(target=rangefinder_listener, args=())
+rangefinder_thread.start()
 
 
 class OUActionNoise:
@@ -413,11 +462,37 @@ def force_disarm() -> None:
     )
 
 
-def episode_reset_and_grab_state():
-    if is_armed():
-        service_proxies.land()
-        wait_until_disarmed()
-    service_proxies.reset_world()
+def navigate_wait(x: float, y: float, z: float, speed: float, frame_id: str, auto_arm: bool, timeout: float = 0) -> bool:
+    """Navigate and, if given a timeout, return bool representing if timeout was reached prematurely. Default is false."""
+    t0 = 0 # secs
+    timeout_passed: bool = False
+    if timeout > 0: # seconds
+        t0 = rospy.get_rostime().secs
+    # begin navigating using px4's autopilot
+    service_proxies.navigate(x=z, y=y, z=z, speed=speed, frame_id=frame_id, auto_arm=auto_arm)
+    # spin until we are within a certain threshold from target
+    while not rospy.is_shutdown():
+        # get current position relative to desired position
+        telem = service_proxies.get_telemetry(frame_id="navigate_target")
+        print(telem)
+        if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < action_movement_threshold:
+            break
+        # if timeout passes and we're not at desired point, terminate early
+        if timeout > 0 and rospy.get_rostime().secs - t0 > timeout:
+            timeout_passed = True
+            break
+        rospy.sleep(0.2)
+    return timeout_passed
+
+
+# FIXME: way to reset gazebo from rospy in order to restart when drone flips over
+def episode_reset_and_grab_state() -> State:
+    """Reset the drone's position and return the new state."""
+    navigate_wait(x=0, y=0, z=1, speed=1, frame_id="map", auto_arm=True)
+    navigate_wait(x=0, y=0, z=0.5, speed=1, frame_id="map", auto_arm=True)
+    service_proxies.land()
+    wait_until_disarmed()
+    # FIXME: set current position as new origin to rid us of any issues?
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
@@ -425,6 +500,7 @@ def episode_reset_and_grab_state():
 
 
 def episode_take_action(action: Action) -> Tuple[State, float, bool]:
+    """Take the given action in the environment."""
     global state
     # coordinate systems in clover:
     # https://clover.coex.tech/en/frames.html#coordinate-systems-frames
@@ -434,29 +510,15 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # The 'body' frame remains upright regardless of
     # the quadcopter's orientation.
     (x, y, z) = util.convert_spherical_to_cartesian(action.r, action.theta, action.phi)
-    service_proxies.navigate(
+    timeout_passed = navigate_wait(
         x=x,
         y=y,
         z=z,
         speed=1,
         frame_id="body",
         auto_arm=True,
+        timeout=10,
     )
-    # wait until target is reached
-    t0 = rospy.get_rostime().secs
-    timeout = 10  # seconds
-    timeout_passed: bool = False
-    # source: https://clover.coex.tech/en/snippets.html#navigate_wait
-    while not rospy.is_shutdown():
-        # get current position relative to desired position
-        telem = service_proxies.get_telemetry(frame_id="navigate_target")
-        if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < action_movement_threshold:
-            break
-        # if timeout passes and we're not at desired point, take new action and take hit to reward
-        if rospy.get_rostime().secs - t0 > timeout:
-            timeout_passed = True
-            break
-        rospy.sleep(0.2)
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
