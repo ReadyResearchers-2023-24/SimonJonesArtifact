@@ -4,49 +4,15 @@ import os
 
 import roslaunch
 import rospy
-
-px4_launch = None
-gazebo_launch = None
-clover_services_launch = None
-clover_model_launch = None
+import rospkg
 
 
-def launch_px4():
-    """Launch px4 node."""
+def launch_simulation():
+    """Launch all nodes."""
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    px4_launch = roslaunch.parent.ROSLaunchParent(
-        uuid, [os.path.join("launch", "px4.launch")]
+    rospack = rospkg.RosPack()
+    clover_simulation_path = rospack.get_path("clover_simulation")
+    this_launch = roslaunch.parent.ROSLaunchParent(
+        uuid, [os.path.join(clover_simulation_path, "launch", "simulator.launch")]
     )
-    px4_launch.start()
-    rospy.loginfo("started px4")
-
-
-def launch_gazebo():
-    """Launch gazebo node."""
-    uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    gazebo_launch = roslaunch.parent.ROSLaunchParent(
-        uuid, [os.path.join("launch", "gazebo.launch")]
-    )
-    gazebo_launch.start()
-    rospy.loginfo("started gazebo")
-
-
-def launch_clover_services():
-    """Launch clover_services node."""
-    uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    clover_services_launch = roslaunch.parent.ROSLaunchParent(
-        uuid, [os.path.join("launch", "clover_services.launch")]
-    )
-    clover_services_launch.start()
-    rospy.loginfo("started clover_services")
-
-
-def launch_clover_model():
-    """Launch clover_model node."""
-    uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    clover_model_launch = roslaunch.parent.ROSLaunchParent(
-        uuid, [os.path.join("launch", "clover_model.launch")]
-    )
-    clover_model_launch.start()
-    rospy.loginfo("started clover_model")
+    this_launch.start()

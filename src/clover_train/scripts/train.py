@@ -4,6 +4,7 @@ import copy
 import math
 import numpy as np
 import rospy
+import rosservice
 import service_proxies
 import simulation_nodes
 import time
@@ -486,13 +487,19 @@ def navigate_wait(x: float, y: float, z: float, speed: float, frame_id: str, aut
 
 
 # FIXME: way to reset gazebo from rospy in order to restart when drone flips over
-def episode_reset_and_grab_state() -> State:
+def episode_init_and_grab_state() -> State:
     """Reset the drone's position and return the new state."""
-    navigate_wait(x=0, y=0, z=1, speed=1, frame_id="map", auto_arm=True)
-    navigate_wait(x=0, y=0, z=0.5, speed=1, frame_id="map", auto_arm=True)
-    service_proxies.land()
-    wait_until_disarmed()
-    # FIXME: set current position as new origin to rid us of any issues?
+    if "/simulation_killswitch" in rosservice.get_service_list():
+        # kill simulation
+        service_proxies.simulation_killswitch()
+    # make sure all gazebo nodes have shut down
+    r = rospy.Rate(1)
+    while "/mavros/cmd/arming" in rosservice.get_service_list():
+        r.sleep()
+    # start simulation
+    simulation_nodes.launch_simulation()
+    # await simulation to come online by reinitializing service proxies
+    service_proxies.init()
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
@@ -587,19 +594,8 @@ ep_reward_list = []
 # To store average reward history of last few episodes
 avg_reward_list = []
 
-# NOTE: set to true to launch nodes from this process
-launch_simulation_nodes_manually = False
-if launch_simulation_nodes_manually:
-    simulation_nodes.launch_px4()
-    simulation_nodes.launch_gazebo()
-    simulation_nodes.launch_clover_services()
-    simulation_nodes.launch_clover_model()
-
-# set up ROS related handles
-service_proxies.init()
-
 for ep in range(total_episodes):
-    prev_state: State = episode_reset_and_grab_state()
+    prev_state: State = episode_init_and_grab_state()
     episodic_reward = 0
 
     # set loop rate of 100Hz

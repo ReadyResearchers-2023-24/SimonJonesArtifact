@@ -19,6 +19,7 @@ set_attitude = None
 set_position = None
 set_rates = None
 set_velocity = None
+simulation_killswitch = None
 unpause_physics = None
 
 
@@ -48,4 +49,5 @@ def init():
     globals()["set_velocity"] = rospy.ServiceProxy(
         "set_velocity", clover_srv.SetVelocity
     )
+    globals()["simulation_killswitch"] = rospy.ServiceProxy("simulation_killswitch", Empty)
     globals()["unpause_physics"] = rospy.ServiceProxy("/gazebo/unpause_physics", Empty)
