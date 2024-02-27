@@ -563,6 +563,12 @@ ou_noise = OUActionNoise(
     mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
 )
 
+actor_model_weights_filepath = "ddpg_actor.h5"
+criticl_model_weights_filepath = "ddpg_critic.h5"
+
+target_actor_weights_filepath = "ddpg_target_actor.h5"
+target_critic_weights_filepath = "ddpg_target_critic.h5"
+
 actor_model = get_actor()
 critic_model = get_critic()
 
@@ -572,6 +578,13 @@ target_critic = get_critic()
 # Making the weights equal initially
 target_actor.set_weights(actor_model.get_weights())
 target_critic.set_weights(critic_model.get_weights())
+
+# FIXME: load weights if we're running this as part of a second run
+if False:
+    actor_model.load_weights(actor_model_weights_filepath)
+    critic_model.load_weights(criticl_model_weights_filepath)
+    target_actor.load_weights(target_actor_weights_filepath)
+    target_critic.load_weights(target_critic_weights_filepath)
 
 # Learning rate for actor-critic models
 critic_lr = 0.002
@@ -638,12 +651,14 @@ for ep in range(total_episodes):
     avg_reward_list.append(avg_reward)
 
 # Save the weights
-actor_model.save_weights("ddpg_actor.h5")
-critic_model.save_weights("ddpg_critic.h5")
+actor_model.save_weights(actor_model_weights_filepath)
+critic_model.save_weights(criticl_model_weights_filepath)
 
-target_actor.save_weights("ddpg_target_actor.h5")
-target_critic.save_weights("ddpg_target_critic.h5")
+target_actor.save_weights(target_actor_weights_filepath)
+target_critic.save_weights(target_critic_weights_filepath)
 
-rospy.signal_shutdown(f"Succesfully {total_episodes}. Signaling shut down.")
+rospy.signal_shutdown(f"Total episodes: {total_episodes}; Signaling shut down.")
 
 local_position_thread.join()
+velocity_thread.join()
+rangefinder_thread.join()
