@@ -69,6 +69,20 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         model=SimulationModel.from_gazebo_model("ground_plane")
     )
 
+    free_space_polygon = world_gen.world.get_free_space_polygon(
+        ground_plane_models=[walls_model.name],
+        ignore_models=["ground_plane", ceiling_model.name],
+    )
+
+    # Add the workspace constraint to the generator
+    world_gen.add_constraint(
+        name='room_workspace',
+        type='workspace',
+        frame='world',
+        geometry_type='polygon',
+        polygon=free_space_polygon,
+    )
+
     NUM_BOXES = 4
     NUM_CYLINDER = 4
 
