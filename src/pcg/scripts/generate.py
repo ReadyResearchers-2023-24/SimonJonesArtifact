@@ -10,6 +10,7 @@ from pathlib import Path
 import random
 import rospy
 import os
+import time
 
 
 rospy.init_node("pcg")
@@ -21,6 +22,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     """Randomly generate a room and save it to a file."""
     # credit: https://github.com/boschresearch/pcg_gazebo/blob/master/examples/gen_grid_map.ipynb
     world_gen = WorldGenerator()
+    timestamp = time.time()
     wall_thickness = 0.15 # m
     wall_height = random.randint(3, 6) # m
     wall_polygon = random_rectangles(
@@ -38,7 +40,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         extrude_boundaries=True,
         color="xkcd",
     )
-    walls_model.name = "walls"
+    walls_model.name = f"walls-{timestamp}"
     ceiling_model = extrude(
         polygon=wall_polygon,
         thickness=10,
@@ -47,7 +49,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         extrude_boundaries=True,
         color="xkcd",
     )
-    ceiling_model.name = "ceiling"
+    ceiling_model.name = f"ceiling-{timestamp}"
 
     # reset world generator
     world_gen.init()
@@ -76,10 +78,10 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
     # Add the workspace constraint to the generator
     world_gen.add_constraint(
-        name='room_workspace',
-        type='workspace',
-        frame='world',
-        geometry_type='polygon',
+        name="room_workspace",
+        type="workspace",
+        frame="world",
+        geometry_type="polygon",
         polygon=free_space_polygon,
     )
 
@@ -87,16 +89,16 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     NUM_CYLINDER = 4
 
     placement_policy = dict(
-        models=['dyn_box', 'static_cylinder'],
+        models=["dyn_box", "static_cylinder"],
         config=[
             dict(
-                dofs=['x', 'y'],
-                tag='workspace',
-                workspace='room_workspace'
+                dofs=["x", "y"],
+                tag="workspace",
+                workspace="room_workspace"
             ),
             dict(
-                dofs=['yaw'],
-                tag='uniform',
+                dofs=["yaw"],
+                tag="uniform",
                 min=-3.141592653589793,
                 max=3.141592653589793
             )
@@ -107,8 +109,8 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     z_ascii = 122
     world_gen.add_engine(
         tag="".join([chr(random.randint(a_ascii, a_ascii)) for i in range(5)]),
-        engine_name='random_pose',
-        models=['dyn_box', 'static_cylinder'],
+        engine_name="random_pose",
+        models=["dyn_box", "static_cylinder"],
         max_num=dict(
             dyn_box=NUM_BOXES,
             static_cylinder=NUM_CYLINDER),
@@ -117,11 +119,11 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         policies=[placement_policy],
         constraints=[
             dict(
-                model='dyn_box',
-                constraint='tangent_to_ground_plane'),
+                model="dyn_box",
+                constraint="tangent_to_ground_plane"),
             dict(
-                model='static_cylinder',
-                constraint='tangent_to_ground_plane')
+                model="static_cylinder",
+                constraint="tangent_to_ground_plane")
         ]
     )
 
