@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
 from pcg_gazebo.generators import WorldGenerator
-from pcg_gazebo.generators.creators import extrude
+from pcg_gazebo.generators.creators import extrude, box
 from pcg_gazebo.generators.shapes import random_rectangles
 from pcg_gazebo.simulation import SimulationModel
 from pcg_gazebo.utils import generate_random_string
-from pcg_gazebo.simulation.world import get_random_free_spots
 
 import random
 import rospy
 import os
 
 
-rospy.init_node("pcg")
+rospy.init_node("generate")
 N_ROOMS=10
 
 
@@ -26,9 +25,9 @@ def generate_room(n_rectangles: float, filename: str) -> None:
             type='box',
             args=dict(
                 size="5 * __import__('pcg_gazebo').random.rand(3)",
-                name='cuboid',
+                name="cuboid",
                 mass="max(0.1, __import__('pcg_gazebo').random.rand())",
-                color='xkcd'
+                color="xkcd"
             )
         )
     )
@@ -36,14 +35,14 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     assert "dyn_box" in world_gen.assets.tags
 
     world_gen.add_asset(
-        tag='static_cylinder',
+        tag="static_cylinder",
         description=dict(
-            type='cylinder',
+            type="cylinder",
             args=dict(
                 length="2 * __import__('pcg_gazebo').random.rand()",
                 radius="2 * __import__('pcg_gazebo').random.rand()",
-                name='cylinder',
-                color='xkcd'
+                name="cylinder",
+                color="xkcd"
             )
         )
     )
@@ -51,11 +50,11 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     assert "static_cylinder" in world_gen.assets.tags
 
     world_gen.add_constraint(
-        name='tangent_to_ground_plane',
-        type='tangent',
-        frame='world',
+        name="tangent_to_ground_plane",
+        type="tangent",
+        frame="world",
         reference=dict(
-            type='plane',
+            type="plane",
             args=dict(
                 origin=[0, 0, 0],
                 normal=[0, 0, 1]
@@ -73,6 +72,14 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         delta_x_max=10,
         delta_y_min=6,
         delta_y_max=10,
+    )
+
+    # create model the size of the clover's collision box to later
+    # use for deciding an open space to place the clover model
+    clover_sized_box_model = box(
+        size=[0.35, 0.35, 0.124],
+        mass=1,
+        name="clover_sized_box",
     )
     walls_model = extrude(
         polygon=wall_polygon,
@@ -147,8 +154,6 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         ]
     )
 
-    a_ascii = 97
-    z_ascii = 122
     world_gen.add_engine(
         tag=generate_random_string(5),
         engine_name='random_pose',
@@ -171,7 +176,9 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
     world_gen.run_engines(attach_models=True)
 
-    world_gen.get_random_free_spots(n_spots, "clover")
+    # FIXME: publish this in the form of a service or topic
+    # FIXME: publish file namees of maps in the form of a service or topic
+    print(world_gen.world.get_random_free_spots(model=clover_sized_box_model, n_spots=1)[0])
 
     # save world
     # default location is
@@ -185,5 +192,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
 
 if __name__=="__main__":
+    # using +2 because minimum number of rectangles is 2
+    # when using plural method
     for i in [number+2 for number in range(N_ROOMS)]:
         generate_room(n_rectangles=i, filename=f"{i}-rectangles-walls")
