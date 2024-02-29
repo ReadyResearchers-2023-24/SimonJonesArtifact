@@ -89,7 +89,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         extrude_boundaries=True,
         color="xkcd",
     )
-    walls_model.name = "walls"
+    walls_model.name = f"walls_{n_rectangles}"
     ceiling_model = extrude(
         polygon=wall_polygon,
         thickness=10,
@@ -98,7 +98,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         extrude_boundaries=True,
         color="xkcd",
     )
-    ceiling_model.name = "ceiling"
+    ceiling_model.name = f"ceiling_{n_rectangles}"
 
     # reset world generator
     world_gen.init()
@@ -134,8 +134,8 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         polygon=free_space_polygon,
     )
 
-    NUM_BOXES = 4
-    NUM_CYLINDER = 4
+    NUM_BOXES = 2
+    NUM_CYLINDER = 2
 
     placement_policy = dict(
         models=['dyn_box', 'static_cylinder'],
@@ -178,6 +178,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
     # FIXME: publish this in the form of a service or topic
     # FIXME: publish file namees of maps in the form of a service or topic
+    print(world_gen.constraints.get("room_workspace").get_random_position())
     print(world_gen.world.get_random_free_spots(model=clover_sized_box_model, n_spots=1)[0])
 
     # save world
