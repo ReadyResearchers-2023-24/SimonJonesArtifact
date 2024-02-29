@@ -1,0 +1,5 @@
+<launch>
+  <!-- use the local python virtualenv for this package -->
+  <arg name="venv" value="$(find pcg)/venv/bin/python3" />
+  <node pkg="pcg" type="generate.py" ns="pcg" name="generate" launch-prefix="$(arg venv)" output="screen" />
+</launch>
