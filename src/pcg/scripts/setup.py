@@ -6,6 +6,8 @@ import sys
 import rospkg
 import rospy
 
+rospy.init_node("setup")
+
 force = bool(rospy.get_param("/force"))
 
 ros_package_name = "pcg"
@@ -29,11 +31,12 @@ def install_dependencies():
     subprocess.run([os.path.join(venv_file, 'bin', 'pip'), 'install', '-r', requirements_file], check=True)
 
 def install_deps_if_not_installed():
+    venv_initialized = os.path.exists(venv_file)
     # Check if the virtual environment already exists
-    if not os.path.exists(venv_file):
+    if not venv_initialized:
         create_venv()
     # only install packages if venv file is not created or force is set to true
-    if not os.path.exists(venv_file) or force:
+    if not venv_initialized:
         # Install dependencies
         install_dependencies()
 
