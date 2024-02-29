@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from pcg_gazebo.generators import WorldGenerator
 from pcg_gazebo.generators.creators import extrude
 from pcg_gazebo.generators.shapes import random_rectangles
 from pcg_gazebo.simulation import SimulationModel
-from pcg_gazebo.visualization import plot_workspace, plot_occupancy_grid
-from pathlib import Path
+from pcg_gazebo.utils import generate_random_string
+from pcg_gazebo.simulation.world import get_random_free_spots
 
 import random
 import rospy
@@ -13,7 +13,6 @@ import os
 
 
 rospy.init_node("pcg")
-OUTPUT_DIRECTORY = str(Path(os.environ["HOME"]) / Path(".gazebo") / Path(""))
 N_ROOMS=10
 
 
@@ -21,6 +20,51 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     """Randomly generate a room and save it to a file."""
     # credit: https://github.com/boschresearch/pcg_gazebo/blob/master/examples/gen_grid_map.ipynb
     world_gen = WorldGenerator()
+    world_gen.add_asset(
+        tag='dyn_box',
+        description=dict(
+            type='box',
+            args=dict(
+                size="5 * __import__('pcg_gazebo').random.rand(3)",
+                name='cuboid',
+                mass="max(0.1, __import__('pcg_gazebo').random.rand())",
+                color='xkcd'
+            )
+        )
+    )
+    # assert if dyn_box was added correctly
+    assert "dyn_box" in world_gen.assets.tags
+
+    world_gen.add_asset(
+        tag='static_cylinder',
+        description=dict(
+            type='cylinder',
+            args=dict(
+                length="2 * __import__('pcg_gazebo').random.rand()",
+                radius="2 * __import__('pcg_gazebo').random.rand()",
+                name='cylinder',
+                color='xkcd'
+            )
+        )
+    )
+    # assert if static_cylinder was added correctly
+    assert "static_cylinder" in world_gen.assets.tags
+
+    world_gen.add_constraint(
+        name='tangent_to_ground_plane',
+        type='tangent',
+        frame='world',
+        reference=dict(
+            type='plane',
+            args=dict(
+                origin=[0, 0, 0],
+                normal=[0, 0, 1]
+            )
+        )
+    )
+    # assert that tangent_to_ground_plane constraint was added
+    assert "tangent_to_ground_plane" in list(world_gen.constraints.tags)
+
     wall_thickness = 0.15 # m
     wall_height = random.randint(3, 6) # m
     wall_polygon = random_rectangles(
@@ -106,7 +150,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     a_ascii = 97
     z_ascii = 122
     world_gen.add_engine(
-        tag="".join([chr(random.randint(a_ascii, a_ascii)) for i in range(5)]),
+        tag=generate_random_string(5),
         engine_name='random_pose',
         models=['dyn_box', 'static_cylinder'],
         max_num=dict(
@@ -127,10 +171,15 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
     world_gen.run_engines(attach_models=True)
 
+    world_gen.get_random_free_spots(n_spots, "clover")
+
     # save world
+    # default location is
+    #   ~/.gazebo/worlds/ for worlds,
+    #   ~/.gazebo/models/ for models
     world_gen.export_world(
-        output_dir=OUTPUT_DIRECTORY,
         filename=filename,
+        output_dir=os.path.join(os.environ["HOME"], ".gazebo", "worlds"),
         with_default_ground_plane=False
     )
 
