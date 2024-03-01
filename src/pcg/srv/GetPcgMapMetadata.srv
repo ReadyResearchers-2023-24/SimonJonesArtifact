@@ -1,0 +1,4 @@
+string world_sdf_filepath
+int8 num_free_positions
+---
+Point[] free_positions
