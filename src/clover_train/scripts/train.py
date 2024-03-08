@@ -499,7 +499,7 @@ def navigate_wait(
 def episode_init_and_grab_state() -> State:
     """Reset the drone's position and return the new state."""
     # kill simulation
-    util.kill_clover_simulation()
+    simulation_nodes.kill_clover_simulation()
     # make sure all gazebo nodes have shut down
     import rosnode
 
