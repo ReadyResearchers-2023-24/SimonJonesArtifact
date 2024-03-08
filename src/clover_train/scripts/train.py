@@ -498,14 +498,15 @@ def navigate_wait(
 # FIXME: way to reset gazebo from rospy in order to restart when drone flips over
 def episode_init_and_grab_state() -> State:
     """Reset the drone's position and return the new state."""
-    # kill simulation
-    simulation_nodes.kill_clover_simulation()
-    # make sure all gazebo nodes have shut down
     import rosnode
+    if len(rosnode.get_node_names()) > 2:
+        # kill simulation
+        simulation_nodes.kill_clover_simulation()
+        # make sure all gazebo nodes have shut down
 
-    while True:
-        print("current nodes: ", rosnode.get_node_names())
-        rospy.sleep(1)
+        while len(rosnode.get_node_names()) > 2:
+            print("current nodes: ", rosnode.get_node_names())
+            rospy.sleep(1)
     # start simulation
     simulation_nodes.launch_clover_simulation()
     # await simulation to come online by reinitializing service proxies
