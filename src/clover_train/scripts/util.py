@@ -1,7 +1,7 @@
 import math
 
 from typing import List, Any, Tuple
-from dataclasses import dataclass, fields, asdict
+from dataclasses import fields, asdict
 
 
 def convert_spherical_to_cartesian(

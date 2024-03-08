@@ -4,18 +4,16 @@ import copy
 import math
 import numpy as np
 import rospy
-import rosservice
 import service_proxies
 import simulation_nodes
-import time
 import tensorflow as tf
 import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from tensorflow.keras import layers
 from threading import Lock, Thread
-from typing import List, Any, Tuple
-from dataclasses import dataclass, fields, asdict
+from typing import Tuple
+from dataclasses import dataclass
 from pymavlink import mavutil
 from mavros_msgs import msg as mavros_msg
 from sensor_msgs import msg as sensor_msg
@@ -70,7 +68,7 @@ num_actions = util.count_dataclass_fields(Action)
 rangefinder_range: float = 6.0  # meter
 
 # threshold for deciding when drone has reached desired position
-action_movement_threshold: float = 0.1 # meter
+action_movement_threshold: float = 0.1  # meter
 
 # range of action space (to be used to scale action tensors)
 # move at least twice the detection threshold for movement
@@ -199,15 +197,16 @@ def rangefinder_i_callback(i):
         # set current range attribute on state
         setattr(state, f"range_{i}", range.range)
         state_mutex.release()
+
     return rangefinder_callback
 
 
 def rangefinder_listener():
     # subscribe to mavros's pose topic
     for i in range(10):
-      rospy.Subscriber(
-          f"/rangefinder_{i}/range", sensor_msg.Range, rangefinder_i_callback(i)
-      )
+        rospy.Subscriber(
+            f"/rangefinder_{i}/range", sensor_msg.Range, rangefinder_i_callback(i)
+        )
     rospy.spin()
 
 
@@ -338,9 +337,7 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    last_init_relu = tf.random_uniform_initializer(
-        minval=0, maxval=1
-    )
+    last_init_relu = tf.random_uniform_initializer(minval=0, maxval=1)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
@@ -354,7 +351,9 @@ def get_actor():
 
     # scale the outputs, given that they're coming from
     # the basis of an activation function
-    output_scale = tf.convert_to_tensor([action_r_max, action_theta_max, action_phi_max])
+    output_scale = tf.convert_to_tensor(
+        [action_r_max, action_theta_max, action_phi_max]
+    )
     outputs = tf.math.multiply(outputs, output_scale)
     model = tf.keras.Model(inputs, outputs)
     return model
@@ -463,14 +462,24 @@ def force_disarm() -> None:
     )
 
 
-def navigate_wait(x: float, y: float, z: float, speed: float, frame_id: str, auto_arm: bool, timeout: float = 0) -> bool:
+def navigate_wait(
+    x: float,
+    y: float,
+    z: float,
+    speed: float,
+    frame_id: str,
+    auto_arm: bool,
+    timeout: float = 0,
+) -> bool:
     """Navigate and, if given a timeout, return bool representing if timeout was reached prematurely. Default is false."""
-    t0 = 0 # secs
+    t0 = 0  # secs
     timeout_passed: bool = False
-    if timeout > 0: # seconds
+    if timeout > 0:  # seconds
         t0 = rospy.get_rostime().secs
     # begin navigating using px4's autopilot
-    service_proxies.navigate(x=z, y=y, z=z, speed=speed, frame_id=frame_id, auto_arm=auto_arm)
+    service_proxies.navigate(
+        x=z, y=y, z=z, speed=speed, frame_id=frame_id, auto_arm=auto_arm
+    )
     # spin until we are within a certain threshold from target
     while not rospy.is_shutdown():
         # get current position relative to desired position
@@ -489,15 +498,16 @@ def navigate_wait(x: float, y: float, z: float, speed: float, frame_id: str, aut
 # FIXME: way to reset gazebo from rospy in order to restart when drone flips over
 def episode_init_and_grab_state() -> State:
     """Reset the drone's position and return the new state."""
-    if "/simulation_killswitch" in rosservice.get_service_list():
-        # kill simulation
-        service_proxies.simulation_killswitch()
+    # kill simulation
+    util.kill_clover_simulation()
     # make sure all gazebo nodes have shut down
-    r = rospy.Rate(1)
-    while "/mavros/cmd/arming" in rosservice.get_service_list():
-        r.sleep()
+    import rosnode
+
+    while True:
+        print("current nodes: ", rosnode.get_node_names())
+        rospy.sleep(1)
     # start simulation
-    simulation_nodes.launch_simulation()
+    simulation_nodes.launch_clover_simulation()
     # await simulation to come online by reinitializing service proxies
     service_proxies.init()
     state_mutex.acquire()

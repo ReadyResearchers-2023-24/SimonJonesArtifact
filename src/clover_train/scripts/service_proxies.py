@@ -6,7 +6,6 @@ from clover import srv as clover_srv
 from mavros_msgs.srv import CommandLong
 from std_srvs.srv import Empty
 from std_srvs.srv import Trigger
-from gazebo_msgs.srv import GetModelState, SpawnModel
 
 get_telemetry = None
 land = None
@@ -49,5 +48,7 @@ def init():
     globals()["set_velocity"] = rospy.ServiceProxy(
         "set_velocity", clover_srv.SetVelocity
     )
-    globals()["simulation_killswitch"] = rospy.ServiceProxy("simulation_killswitch", Empty)
+    globals()["simulation_killswitch"] = rospy.ServiceProxy(
+        "simulation_killswitch", Empty
+    )
     globals()["unpause_physics"] = rospy.ServiceProxy("/gazebo/unpause_physics", Empty)
