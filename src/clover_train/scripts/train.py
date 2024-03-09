@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
 import copy
+import datetime
 import math
 import numpy as np
+import os
+import rospkg
 import rospy
 import service_proxies
 import simulation_nodes
 import tensorflow as tf
-import os
-import datetime
 import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
@@ -82,16 +83,43 @@ action_r_max: float = rangefinder_range  # meter
 action_theta_max: float = math.pi  # radian
 action_phi_max: float = 2 * math.pi  # radian
 
-time_step_ms = 100
-
 # define list of worlds for each part of the cirriculum
 # FIXME: grab from clover_broadcast package instead
+rospack = rospkg.RosPack()
+clover_simulation_path = rospack.get_path("clover_simulation")
+world_file_base_path = os.path.join(
+    clover_simulation_path, "resources", "worlds"
+)
 cirriculum_worlds = [
     os.path.join(
-        os.path.expanduser("~"), ".gazebo", "worlds", "2-rectangles-walls.world"
+        world_file_base_path, "2-rectangles-walls.world"
     ),
     os.path.join(
-        os.path.expanduser("~"), ".gazebo", "worlds", "3-rectangles-walls.world"
+        world_file_base_path, "3-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "4-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "5-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "6-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "7-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "8-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "9-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "10-rectangles-walls.world"
+    ),
+    os.path.join(
+        world_file_base_path, "11-rectangles-walls.world"
     ),
 ]
 
