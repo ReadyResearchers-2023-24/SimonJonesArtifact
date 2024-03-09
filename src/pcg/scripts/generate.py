@@ -9,11 +9,10 @@ from pcg_gazebo.utils import generate_random_string
 import random
 import rospy
 import os
-import time
 
 
 rospy.init_node("generate")
-N_ROOMS=10
+N_ROOMS = 10
 
 
 def generate_room(n_rectangles: float, filename: str) -> None:
@@ -21,16 +20,16 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     # credit: https://github.com/boschresearch/pcg_gazebo/blob/master/examples/gen_grid_map.ipynb
     world_gen = WorldGenerator()
     world_gen.add_asset(
-        tag='dyn_box',
+        tag="dyn_box",
         description=dict(
-            type='box',
+            type="box",
             args=dict(
                 size="5 * __import__('pcg_gazebo').random.rand(3)",
                 name="cuboid",
                 mass="max(0.1, __import__('pcg_gazebo').random.rand())",
-                color="xkcd"
-            )
-        )
+                color="xkcd",
+            ),
+        ),
     )
     # assert if dyn_box was added correctly
     assert "dyn_box" in world_gen.assets.tags
@@ -43,9 +42,9 @@ def generate_room(n_rectangles: float, filename: str) -> None:
                 length="2 * __import__('pcg_gazebo').random.rand()",
                 radius="2 * __import__('pcg_gazebo').random.rand()",
                 name="cylinder",
-                color="xkcd"
-            )
-        )
+                color="xkcd",
+            ),
+        ),
     )
     # assert if static_cylinder was added correctly
     assert "static_cylinder" in world_gen.assets.tags
@@ -54,19 +53,13 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         name="tangent_to_ground_plane",
         type="tangent",
         frame="world",
-        reference=dict(
-            type="plane",
-            args=dict(
-                origin=[0, 0, 0],
-                normal=[0, 0, 1]
-            )
-        )
+        reference=dict(type="plane", args=dict(origin=[0, 0, 0], normal=[0, 0, 1])),
     )
     # assert that tangent_to_ground_plane constraint was added
     assert "tangent_to_ground_plane" in list(world_gen.constraints.tags)
 
-    wall_thickness = 0.15 # m
-    wall_height = random.randint(3, 6) # m
+    wall_thickness = 0.15  # m
+    wall_height = random.randint(3, 6)  # m
     wall_polygon = random_rectangles(
         n_rect=n_rectangles,
         delta_x_min=6,
@@ -86,7 +79,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
         polygon=wall_polygon,
         thickness=wall_thickness,
         height=wall_height,
-        pose=[0, 0, wall_height / 2., 0, 0, 0],
+        pose=[0, 0, wall_height / 2.0, 0, 0, 0],
         extrude_boundaries=True,
         color="xkcd",
     )
@@ -117,8 +110,7 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     )
     # add ground plane to the world
     world_gen.world.add_model(
-        tag="ground_plane",
-        model=SimulationModel.from_gazebo_model("ground_plane")
+        tag="ground_plane", model=SimulationModel.from_gazebo_model("ground_plane")
     )
 
     free_space_polygon = world_gen.world.get_free_space_polygon(
@@ -141,38 +133,28 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     placement_policy = dict(
         models=["dyn_box", "static_cylinder"],
         config=[
-            dict(
-                dofs=["x", "y"],
-                tag="workspace",
-                workspace="room_workspace"
-            ),
+            dict(dofs=["x", "y"], tag="workspace", workspace="room_workspace"),
             dict(
                 dofs=["yaw"],
                 tag="uniform",
                 min=-3.141592653589793,
-                max=3.141592653589793
-            )
-        ]
+                max=3.141592653589793,
+            ),
+        ],
     )
 
     world_gen.add_engine(
         tag=generate_random_string(5),
-        engine_name='random_pose',
-        models=['dyn_box', 'static_cylinder'],
-        max_num=dict(
-            dyn_box=NUM_BOXES,
-            static_cylinder=NUM_CYLINDER),
-        model_picker='random',
+        engine_name="random_pose",
+        models=["dyn_box", "static_cylinder"],
+        max_num=dict(dyn_box=NUM_BOXES, static_cylinder=NUM_CYLINDER),
+        model_picker="random",
         no_collision=True,
         policies=[placement_policy],
         constraints=[
-            dict(
-                model="dyn_box",
-                constraint="tangent_to_ground_plane"),
-            dict(
-                model="static_cylinder",
-                constraint="tangent_to_ground_plane")
-        ]
+            dict(model="dyn_box", constraint="tangent_to_ground_plane"),
+            dict(model="static_cylinder", constraint="tangent_to_ground_plane"),
+        ],
     )
 
     world_gen.run_engines(attach_models=True)
@@ -180,7 +162,11 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     # FIXME: publish this in the form of a service or topic
     # FIXME: publish file namees of maps in the form of a service or topic
     print(world_gen.constraints.get("room_workspace").get_random_position())
-    print(world_gen.world.get_random_free_spots(model=clover_sized_box_model, n_spots=1)[0])
+    print(
+        world_gen.world.get_random_free_spots(model=clover_sized_box_model, n_spots=1)[
+            0
+        ]
+    )
 
     # save world
     # default location is
@@ -189,12 +175,12 @@ def generate_room(n_rectangles: float, filename: str) -> None:
     world_gen.export_world(
         filename=filename,
         output_dir=os.path.join(os.environ["HOME"], ".gazebo", "worlds"),
-        with_default_ground_plane=False
+        with_default_ground_plane=False,
     )
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     # using +2 because minimum number of rectangles is 2
     # when using plural method
-    for i in [number+2 for number in range(N_ROOMS)]:
+    for i in [number + 2 for number in range(N_ROOMS)]:
         generate_room(n_rectangles=i, filename=f"{i}-rectangles-walls")

@@ -9,7 +9,9 @@ import std_msgs
 import os
 
 
-def get_pcg_map_metadata(req: pcg.srv.GetPcgMapMetadataRequest) -> pcg.srv.GetPcgMapMetadataResponse:
+def get_pcg_map_metadata(
+    req: pcg.srv.GetPcgMapMetadataRequest,
+) -> pcg.srv.GetPcgMapMetadataResponse:
     """Get the metadata for a procedurally-generated map given a filepath."""
     free_positions: List[std_msgs.msg.Point] = []
     # FIXME: return free positions
@@ -20,7 +22,10 @@ def get_pcg_map_metadata(req: pcg.srv.GetPcgMapMetadataRequest) -> pcg.srv.GetPc
     else:
         return None
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     rospy.init_node("broadcast")
-    s = rospy.Service("get_pcg_map_metadata", pcg.srv.GetPcgMapMetadata, get_pcg_map_metadata)
+    s = rospy.Service(
+        "get_pcg_map_metadata", pcg.srv.GetPcgMapMetadata, get_pcg_map_metadata
+    )
     rospy.spin()

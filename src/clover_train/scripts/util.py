@@ -1,4 +1,5 @@
 import math
+import datetime
 
 from typing import List, Any, Tuple
 from dataclasses import fields, asdict
@@ -46,3 +47,27 @@ def count_dataclass_fields(the_dataclass) -> int:
 def dataclass_to_list(the_dataclass_instance) -> List[Any]:
     """Convert a dataclass instance to a list."""
     return list(asdict(the_dataclass_instance).values())
+
+
+def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> None:
+    """
+    Save training run metadata in a file unique to the current time.
+
+    Any kind of `metadata` can be provided; the columns will be dynamically named in the file.
+
+    file_id: identifier to make the file unique, e.g., the current date and time in ISO format
+    """
+    clover_train_metadata_dir = os.path.join(os.path.expanduser("~"), "clover_train_metadata")
+    os.makedirs(clover_train_metadata_dir, exist_ok=True)
+    now_formatted = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    clover_train_metadata_data_path = os.path.join(clover_train_metadata_dir, f"clover_train-{now_formatted}.txt")
+    with open(clover_train_metadata_data_path, "w") as file:
+        # write headers
+        file.write(" ".join([key for key in metadata]))
+        file.write("\n")
+        # convert list of columns into list of rows
+        metadata_rows = [list(row_tuple) for row_tuple in zip(*metadata.values())]
+        for row in metadata_rows:
+            file.write(" ".join([str(i) for i in row]))
+            file.write("\n")
+

@@ -20,15 +20,21 @@ requirements_file = os.path.join(project_root_abs, "requirements.txt")
 # Define the file name of the virtual environment
 venv_file = os.path.join(project_root_abs, "venv")
 
+
 def create_venv():
     """Create a virtual environment."""
-    print('Creating virtual environment...')
-    subprocess.run([sys.executable, '-m', 'venv', venv_file], check=True)
+    print("Creating virtual environment...")
+    subprocess.run([sys.executable, "-m", "venv", venv_file], check=True)
+
 
 def install_dependencies():
     """Install dependencies from requirements.txt."""
-    print('Installing dependencies...')
-    subprocess.run([os.path.join(venv_file, 'bin', 'pip'), 'install', '-r', requirements_file], check=True)
+    print("Installing dependencies...")
+    subprocess.run(
+        [os.path.join(venv_file, "bin", "pip"), "install", "-r", requirements_file],
+        check=True,
+    )
+
 
 def install_deps_if_not_installed():
     venv_initialized = os.path.exists(venv_file)
@@ -40,5 +46,6 @@ def install_deps_if_not_installed():
         # Install dependencies
         install_dependencies()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     install_deps_if_not_installed()

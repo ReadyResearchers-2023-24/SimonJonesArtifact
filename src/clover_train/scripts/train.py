@@ -7,6 +7,7 @@ import rospy
 import service_proxies
 import simulation_nodes
 import tensorflow as tf
+import datetime
 import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
@@ -81,6 +82,13 @@ action_theta_max: float = math.pi  # radian
 action_phi_max: float = 2 * math.pi  # radian
 
 time_step_ms = 100
+
+# define list of worlds for each part of the cirriculum
+# FIXME: grab from clover_broadcast package instead
+cirriculum_worlds = [
+    os.path.join(os.path.expanduser("~"), ".gazebo", "worlds", "2-rectangles-walls.world"),
+    os.path.join(os.path.expanduser("~"), ".gazebo", "worlds", "3-rectangles-walls.world"),
+]
 
 # note: currently, rospy will only allow one callback instance at a time to be run
 # this omits any worries about multiple callbacks loading up to get access to the mutex
@@ -337,7 +345,8 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    last_init_relu = tf.random_uniform_initializer(minval=0, maxval=1)
+    relu_initializer_uniform = tf.random_uniform_initializer(minval=0, maxval=1)
+    relu_initializer_towards_zero = tf.random_uniform_initializer(minval=0, maxval=0.2)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
@@ -345,7 +354,9 @@ def get_actor():
     # initialize relu outputs for actions with range [0, x]
     # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(3, activation="relu", kernel_initializer=last_init_relu)(out),
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(out),
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_towards_zero)(out),
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(out),
     ]
     outputs = layers.concatenate(outputs_list)
 
@@ -391,6 +402,7 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
     # Adding noise to action
     sampled_actions = sampled_actions.numpy() + noise_array
+    print(noise_array)
     lower_bounds = [action_r_min, action_theta_min, action_phi_min]
     upper_bounds = [action_r_max, action_theta_max, action_phi_max]
 
@@ -435,8 +447,8 @@ def episode_calculate_if_done(local_state: State):
     done = (
         False
         or distance_from_desired_pos > 10.0
-        or abs(roll) > math.pi
-        or abs(pitch) > math.pi
+        or abs(roll) > math.pi / 2
+        or abs(pitch) > math.pi / 2
     )
     return done
 
@@ -484,7 +496,6 @@ def navigate_wait(
     while not rospy.is_shutdown():
         # get current position relative to desired position
         telem = service_proxies.get_telemetry(frame_id="navigate_target")
-        print(telem)
         if math.sqrt(telem.x**2 + telem.y**2 + telem.z**2) < action_movement_threshold:
             break
         # if timeout passes and we're not at desired point, terminate early
@@ -502,11 +513,6 @@ def episode_init_and_grab_state() -> State:
     if len(rosnode.get_node_names()) > 2:
         # kill simulation
         simulation_nodes.kill_clover_simulation()
-        # make sure all gazebo nodes have shut down
-
-        while len(rosnode.get_node_names()) > 2:
-            print("current nodes: ", rosnode.get_node_names())
-            rospy.sleep(1)
     # start simulation
     simulation_nodes.launch_clover_simulation()
     # await simulation to come online by reinitializing service proxies
@@ -540,6 +546,7 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
+    # pause physics to keep drone from drifting away
     reward = episode_calculate_reward_metric(local_state, timeout_passed)
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
@@ -590,12 +597,13 @@ target_critic = get_critic()
 target_actor.set_weights(actor_model.get_weights())
 target_critic.set_weights(critic_model.get_weights())
 
-# FIXME: load weights if we're running this as part of a second run
-if False:
-    actor_model.load_weights(actor_model_weights_filepath)
-    critic_model.load_weights(criticl_model_weights_filepath)
-    target_actor.load_weights(target_actor_weights_filepath)
-    target_critic.load_weights(target_critic_weights_filepath)
+# Save the weights before running so that
+# we can load them in the main loop
+actor_model.save_weights(actor_model_weights_filepath)
+critic_model.save_weights(criticl_model_weights_filepath)
+
+target_actor.save_weights(target_actor_weights_filepath)
+target_critic.save_weights(target_critic_weights_filepath)
 
 # Learning rate for actor-critic models
 critic_lr = 0.002
@@ -604,71 +612,87 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-total_episodes = 200
+num_episodes = 
 
 # Discount factor for future rewards
 gamma = 0.99
 # Used to update target networks
 tau = 0.005
 
-buffer = Buffer(50000, 64)
+# identifier for this program's execution
+# used for saving files related to this execution
+identifier = datetime.datetime.now().isoformat()
 
-# To store reward history of each episode
-ep_reward_list = []
-# To store average reward history of last few episodes
-avg_reward_list = []
+for world in cirriculum_worlds:
+    # load weights from saved location
+    actor_model.load_weights(actor_model_weights_filepath)
+    critic_model.load_weights(criticl_model_weights_filepath)
+    target_actor.load_weights(target_actor_weights_filepath)
+    target_critic.load_weights(target_critic_weights_filepath)
 
-for ep in range(total_episodes):
-    prev_state: State = episode_init_and_grab_state()
-    episodic_reward = 0
+    buffer = Buffer(50000, 64)
 
-    # set loop rate of 100Hz
-    # this is handled by ROS to ensure consistent steps
-    r = rospy.Rate(100)
-    while not rospy.is_shutdown():
-        tf_prev_state = tf.expand_dims(
-            tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
-        )
+    # To store reward history of each episode
+    reward_history = {
+        "episodic_reward": [],
+        "average_reward": [],
+        "timestamp": [],
+    }
 
-        action = policy(tf_prev_state, ou_noise)
-        print("[TRACE] policy calculated")
-        # Recieve state and reward from environment.
-        local_state, reward, done = episode_take_action(action)
-        print("[TRACE] action taken")
+    for ep in range(num_episodes):
+        prev_state: State = episode_init_and_grab_state()
+        episodic_reward = 0
 
-        buffer.record((prev_state, action, reward, local_state))
-        episodic_reward += reward
-        print("[TRACE] recorded")
+        while not rospy.is_shutdown():
+            # learning has completed or episode has restarted;
+            # we can unpause physics engine
+            service_proxies.unpause_physics()
 
-        buffer.learn()
-        update_target(target_actor.variables, actor_model.variables, tau)
-        update_target(target_critic.variables, critic_model.variables, tau)
-        print("[TRACE] learned and updated")
+            tf_prev_state = tf.expand_dims(
+                tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
+            )
 
-        # End this episode when `done` is True
-        if done:
-            break
+            action = policy(tf_prev_state, ou_noise)
+            print("[TRACE] policy calculated")
+            # Recieve state and reward from environment.
+            local_state, reward, done = episode_take_action(action)
+            print("[TRACE] action taken")
+            # pause physics engine while learning is taking place
+            service_proxies.pause_physics()
 
-        prev_state = local_state
-        # sleep governed by rospy.Rate to ensure consistent loop intervals
-        r.sleep()
-        print("[TRACE] slept")
+            buffer.record((prev_state, action, reward, local_state))
+            episodic_reward += reward
+            print("[TRACE] recorded")
 
-    ep_reward_list.append(episodic_reward)
+            buffer.learn()
+            update_target(target_actor.variables, actor_model.variables, tau)
+            update_target(target_critic.variables, critic_model.variables, tau)
+            print("[TRACE] learned and updated")
 
-    # Mean of last 40 episodes
-    avg_reward = np.mean(ep_reward_list[-40:])
-    print(f"Episode * {ep} * Avg Reward is ==> {avg_reward}")
-    avg_reward_list.append(avg_reward)
+            # End this episode when `done` is True
+            if done:
+                break
 
-# Save the weights
-actor_model.save_weights(actor_model_weights_filepath)
-critic_model.save_weights(criticl_model_weights_filepath)
+            prev_state = local_state
 
-target_actor.save_weights(target_actor_weights_filepath)
-target_critic.save_weights(target_critic_weights_filepath)
+        reward_history["episodic_reward"].append(episodic_reward)
+        # Mean of last 40 episodes
+        avg_reward = np.mean(reward_history["episodic_reward"][-40:])
+        reward_history["average_reward"].append(avg_reward)
+        reward_history["world_file"].append(world)
+        reward_history["timestamp"].append(datetime.datetime.now().isoformat())
 
-rospy.signal_shutdown(f"Total episodes: {total_episodes}; Signaling shut down.")
+    # Save the weights
+    actor_model.save_weights(actor_model_weights_filepath)
+    critic_model.save_weights(criticl_model_weights_filepath)
+
+    target_actor.save_weights(target_actor_weights_filepath)
+    target_critic.save_weights(target_critic_weights_filepath)
+
+    # save training metadata
+    util.save_clover_train_metadata(reward_history, identifier)
+
+rospy.signal_shutdown(f"Total episodes: {num_episodes}; Signaling shut down.")
 
 local_position_thread.join()
 velocity_thread.join()
