@@ -1,7 +1,8 @@
 import math
+import os
 import datetime
 
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Dict
 from dataclasses import fields, asdict
 
 
@@ -57,10 +58,14 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
 
     file_id: identifier to make the file unique, e.g., the current date and time in ISO format
     """
-    clover_train_metadata_dir = os.path.join(os.path.expanduser("~"), "clover_train_metadata")
+    clover_train_metadata_dir = os.path.join(
+        os.path.expanduser("~"), "clover_train_metadata"
+    )
     os.makedirs(clover_train_metadata_dir, exist_ok=True)
     now_formatted = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    clover_train_metadata_data_path = os.path.join(clover_train_metadata_dir, f"clover_train-{now_formatted}.txt")
+    clover_train_metadata_data_path = os.path.join(
+        clover_train_metadata_dir, f"clover_train-{now_formatted}.txt"
+    )
     with open(clover_train_metadata_data_path, "w") as file:
         # write headers
         file.write(" ".join([key for key in metadata]))
@@ -70,4 +75,3 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
         for row in metadata_rows:
             file.write(" ".join([str(i) for i in row]))
             file.write("\n")
-

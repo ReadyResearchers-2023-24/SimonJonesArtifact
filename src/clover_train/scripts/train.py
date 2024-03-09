@@ -7,6 +7,7 @@ import rospy
 import service_proxies
 import simulation_nodes
 import tensorflow as tf
+import os
 import datetime
 import util
 
@@ -86,8 +87,12 @@ time_step_ms = 100
 # define list of worlds for each part of the cirriculum
 # FIXME: grab from clover_broadcast package instead
 cirriculum_worlds = [
-    os.path.join(os.path.expanduser("~"), ".gazebo", "worlds", "2-rectangles-walls.world"),
-    os.path.join(os.path.expanduser("~"), ".gazebo", "worlds", "3-rectangles-walls.world"),
+    os.path.join(
+        os.path.expanduser("~"), ".gazebo", "worlds", "2-rectangles-walls.world"
+    ),
+    os.path.join(
+        os.path.expanduser("~"), ".gazebo", "worlds", "3-rectangles-walls.world"
+    ),
 ]
 
 # note: currently, rospy will only allow one callback instance at a time to be run
@@ -354,9 +359,15 @@ def get_actor():
     # initialize relu outputs for actions with range [0, x]
     # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(out),
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_towards_zero)(out),
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(out),
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+            out
+        ),
+        layers.Dense(
+            1, activation="relu", kernel_initializer=relu_initializer_towards_zero
+        )(out),
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+            out
+        ),
     ]
     outputs = layers.concatenate(outputs_list)
 
@@ -506,15 +517,15 @@ def navigate_wait(
     return timeout_passed
 
 
-# FIXME: way to reset gazebo from rospy in order to restart when drone flips over
-def episode_init_and_grab_state() -> State:
+def episode_init_and_grab_state(gazebo_world_filepath: str) -> State:
     """Reset the drone's position and return the new state."""
     import rosnode
+
     if len(rosnode.get_node_names()) > 2:
         # kill simulation
         simulation_nodes.kill_clover_simulation()
     # start simulation
-    simulation_nodes.launch_clover_simulation()
+    simulation_nodes.launch_clover_simulation(gazebo_world_filepath)
     # await simulation to come online by reinitializing service proxies
     service_proxies.init()
     state_mutex.acquire()
@@ -612,7 +623,7 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-num_episodes = 
+num_episodes = 10
 
 # Discount factor for future rewards
 gamma = 0.99
@@ -623,7 +634,7 @@ tau = 0.005
 # used for saving files related to this execution
 identifier = datetime.datetime.now().isoformat()
 
-for world in cirriculum_worlds:
+for gazebo_world_filepath in cirriculum_worlds:
     # load weights from saved location
     actor_model.load_weights(actor_model_weights_filepath)
     critic_model.load_weights(criticl_model_weights_filepath)
@@ -640,7 +651,7 @@ for world in cirriculum_worlds:
     }
 
     for ep in range(num_episodes):
-        prev_state: State = episode_init_and_grab_state()
+        prev_state: State = episode_init_and_grab_state(gazebo_world_filepath)
         episodic_reward = 0
 
         while not rospy.is_shutdown():
@@ -679,7 +690,7 @@ for world in cirriculum_worlds:
         # Mean of last 40 episodes
         avg_reward = np.mean(reward_history["episodic_reward"][-40:])
         reward_history["average_reward"].append(avg_reward)
-        reward_history["world_file"].append(world)
+        reward_history["world_file"].append(gazebo_world_filepath)
         reward_history["timestamp"].append(datetime.datetime.now().isoformat())
 
     # Save the weights

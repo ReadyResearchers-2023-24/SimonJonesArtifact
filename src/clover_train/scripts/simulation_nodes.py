@@ -6,11 +6,10 @@ import roslaunch
 import rosnode
 import rospkg
 import rospy
-import subprocess
 import time
 
 
-NODE_KILL_TIMEOUT = 60 # seconds
+NODE_KILL_TIMEOUT = 60  # seconds
 
 
 def launch_clover_simulation(gazebo_world_filepath: str = None) -> None:
