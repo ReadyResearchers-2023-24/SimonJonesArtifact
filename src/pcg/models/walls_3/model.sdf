@@ -1,0 +1,40 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="walls_3">
+    <pose frame="">0 0 3 0 -0 0</pose>
+    <static>1</static>
+    <self_collide>0</self_collide>
+    <allow_auto_disable>0</allow_auto_disable>
+    <link name="mesh">
+      <kinematic>0</kinematic>
+      <gravity>1</gravity>
+      <self_collide>0</self_collide>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://walls_3/meshes/iaJCvfcmFG.stl</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+        <pose frame="">-2.0783 -6.32172 -3 0 -0 0</pose>
+        <max_contacts>20</max_contacts>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://walls_3/meshes/WgEBodrpuE.stl</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.937255 0.113725 0.905882 1</ambient>
+          <diffuse>0.9372549019607843 0.11372549019607843 0.9058823529411765 1</diffuse>
+        </material>
+        <pose frame="">-2.0783 -6.32172 -3 0 -0 0</pose>
+        <cast_shadows>1</cast_shadows>
+        <transparency>0.0</transparency>
+      </visual>
+      <pose frame="">0 0 0 0 -0 0</pose>
+    </link>
+  </model>
+</sdf>
