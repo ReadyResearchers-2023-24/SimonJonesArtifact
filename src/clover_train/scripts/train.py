@@ -647,6 +647,7 @@ for gazebo_world_filepath in cirriculum_worlds:
     reward_history = {
         "episodic_reward": [],
         "average_reward": [],
+        "world_file": [],
         "timestamp": [],
     }
 

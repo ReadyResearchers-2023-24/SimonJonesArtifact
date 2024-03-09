@@ -28,7 +28,7 @@ def launch_clover_simulation(gazebo_world_filepath: str = None) -> None:
     if gazebo_world_filepath is not None:
         cli_args.append(f"gazebo_world_filepath:={gazebo_world_filepath}")
     # construct launch parent object for starting launch file
-    this_launch = roslaunch.parent.ROSLaunchParent(uuid, cli_args)
+    this_launch = roslaunch.parent.ROSLaunchParent(uuid, [(cli_args[0], cli_args[1:])])
     this_launch.start()
 
 
