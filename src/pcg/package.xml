@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>pcg</name>
   <version>0.0.1</version>
   <description>Wrapper for pcg_gazebo</description>
@@ -37,9 +37,9 @@
   <!--   <build_depend>roscpp</build_depend> -->
   <!--   <exec_depend>roscpp</exec_depend> -->
   <!-- Use build_depend for packages you need at compile time: -->
-  <build_depend>message_generation</build_depend>
-  <!-- Use build_export_depend for packages you need in order to build against this package: -->
-  <build_export_depend>message_generation</build_export_depend>
+  <depend>message_generation</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
   <!-- Use buildtool_depend for build tool packages: -->
   <!--   <buildtool_depend>catkin</buildtool_depend> -->
   <!-- Use exec_depend for packages you need at runtime: -->
