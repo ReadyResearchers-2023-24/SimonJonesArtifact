@@ -18,3 +18,5 @@ jobs:
           fetch-depth: 0
       - name: Run Markdown Linting
         uses: actionshub/markdownlint@main
+        with:
+          filesToIgnoreRegex: "(logseq\\/.*)"
