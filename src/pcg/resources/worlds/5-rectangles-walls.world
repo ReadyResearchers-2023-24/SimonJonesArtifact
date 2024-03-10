@@ -210,12 +210,6 @@
       <static>1</static>
     </include>
     <include>
-      <uri>model://ground_plane</uri>
-      <pose frame="">0 0 0 0 -0 0</pose>
-      <name>ground_plane</name>
-      <static>1</static>
-    </include>
-    <include>
       <uri>model://sun</uri>
     </include>
     <include>

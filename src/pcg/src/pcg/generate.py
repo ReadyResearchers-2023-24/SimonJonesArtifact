@@ -3,17 +3,26 @@ from pcg_gazebo.generators.creators import extrude, box
 from pcg_gazebo.generators.shapes import random_rectangles
 from pcg_gazebo.simulation import SimulationModel
 from pcg_gazebo.utils import generate_random_string
+from geometry_msgs.msg import Pose
+from typing import List
 
 import random
 import rospy
 import os
+import rospkg
 
 
 rospy.init_node("generate")
-N_ROOMS = 10
 
+# FIXME: add parquet_plane model. currently,
+# the only way to add it is manually
 
-def generate_room(n_rectangles: float, filename: str) -> None:
+def generate_room(
+    n_rectangles: float,
+    filename: str,
+    worlds_dir_path: str = None,
+    models_dir_path: str = None,
+) -> None:
     """Randomly generate a room and save it to a file."""
     # credit: https://github.com/boschresearch/pcg_gazebo/blob/master/examples/gen_grid_map.ipynb
     world_gen = WorldGenerator()
@@ -159,26 +168,45 @@ def generate_room(n_rectangles: float, filename: str) -> None:
 
     # FIXME: publish this in the form of a service or topic
     # FIXME: publish file namees of maps in the form of a service or topic
-    print(world_gen.constraints.get("room_workspace").get_random_position())
-    print(
-        world_gen.world.get_random_free_spots(model=clover_sized_box_model, n_spots=1)[
-            0
-        ]
-    )
+    # FIXME: test if this takes too long
+
+    free_poses_to_broadcast: List[Pose] = []
+    while len(free_poses_to_broadcast) < 2:
+        # take 100 random free spots to determine free spots in the map
+
+        random_free_poses = world_gen.world.get_random_free_spots(
+            model=clover_sized_box_model,
+            n_spots=100,
+        )[0]
+
+        for random_free_pose in random_free_poses:
+            # determine if free space is within the room workspace (inside the room)
+            if world_gen.constraints.get("room_workspace").contains_point(
+                    [random_free_pose.x, random_free_pose.y]
+                ):
+                # broadcast the valid pose within the room
+                pose_to_broadcast = Pose()
+                pose_to_broadcast.position.x = random_free_pose.x
+                pose_to_broadcast.position.y = random_free_pose.y
+                free_poses_to_broadcast.append(pose_to_broadcast)
+
+
+    rospack = rospkg.RosPack()
+    clover_simulation_path = rospack.get_path("clover_simulation")
+
+    if worlds_dir_path is None:
+        worlds_dir_path = os.path.join(
+            clover_simulation_path, "resources", "worlds"
+        )
+    if models_dir_path is None:
+        models_dir_path = os.path.join(
+            clover_simulation_path, "models"
+        )
 
     # save world
-    # default location is
-    #   ~/.gazebo/worlds/ for worlds,
-    #   ~/.gazebo/models/ for models
     world_gen.export_world(
         filename=filename,
-        output_dir=os.path.join(os.environ["HOME"], ".gazebo", "worlds"),
+        output_dir=worlds_dir_path,
+        models_output_dir=models_dir_path,
         with_default_ground_plane=False,
     )
-
-
-if __name__ == "__main__":
-    # using +2 because minimum number of rectangles is 2
-    # when using plural method
-    for i in [number + 2 for number in range(N_ROOMS)]:
-        generate_room(n_rectangles=i, filename=f"{i}-rectangles-walls")

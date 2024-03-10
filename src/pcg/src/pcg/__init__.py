@@ -9,31 +9,31 @@ USAGE = '''
 pcg - Script for procedural world generation in gazebo.
 
 Usage:
-  pcg [--world-path=<path>] [--model-path=<path>] [--num-worlds=<int>]
+  pcg [--num-worlds=<int>] [--worlds-dir=<path>] [--models-dir=<path>]
 
 Options:
   -h, --help             Show this screen.
-  --num-worlds           Number of worlds to generate [default: 10]
-  --world-path=<path>    Folder where generated worlds will be saved
-                         [default: ~/.gazebo/worlds].
-  --model-path=<path>    Folder where generated models will be saved
-                         [default: ~/.gazebo/models].
+  --num-worlds=<int>     Number of worlds to generate [default: 10]
+  --worlds-dir=<path>    Directory where generated worlds will be saved
+                         [default: pcg/models/].
+  --models-dir=<path>    Directory where generated models will be saved
+                         [default: pcg/resources/worlds].
 
 '''
 
 def pcg():
     opts = docopt(USAGE)
 
-    world_path = opts['--world-path']
-    model_path = opts['--model-path']
+    worlds_dir = opts['--worlds-dir'] or None
+    models_dir = opts['--models-dir'] or None
     num_worlds = int(opts['--num-worlds'])
-
-    model_base_path = os.path.expanduser(opts['--model-path'])
-    world_base_path = os.path.expanduser(opts['--world-path'])
-
-    raise Exception("FIXME: not implemented.")
 
     # using +2 because minimum number of rectangles is 2
     # when using plural method
     for i in [number + 2 for number in range(num_worlds)]:
-        generate_room(n_rectangles=i, filename=f"{i}-rectangles-walls")
+        generate_room(
+            n_rectangles=i,
+            filename=f"{i}-rectangles-walls",
+            worlds_dir_path=worlds_dir,
+            models_dir_path=models_dir
+        )

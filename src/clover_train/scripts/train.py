@@ -86,7 +86,7 @@ action_phi_max: float = 2 * math.pi  # radian
 # define list of worlds for each part of the cirriculum
 # FIXME: grab from clover_broadcast package instead
 rospack = rospkg.RosPack()
-clover_simulation_path = rospack.get_path("clover_simulation")
+clover_simulation_path = rospack.get_path("pcg")
 world_file_base_path = os.path.join(
     clover_simulation_path, "resources", "worlds"
 )
@@ -146,7 +146,7 @@ velocity_callback_mutex_misses = 0
 
 def velocity_callback(velocity):
     global velocity_callback_mutex_misses
-    mutex_acquired = state_mutex.acquire(blocking=False)
+    mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
     # that ros does not allow multiple instances of the same callback function.
     # Otherwise, we would have to use atomic types.
@@ -182,7 +182,7 @@ local_position_callback_mutex_misses = 0
 
 def local_position_callback(local_position):
     global local_position_callback_mutex_misses
-    mutex_acquired = state_mutex.acquire(blocking=False)
+    mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
     # that ros does not allow multiple instances of the same callback function.
     # Otherwise, we would have to use atomic types.
@@ -225,7 +225,7 @@ rangefinder_callback_mutex_misses = 0
 def rangefinder_i_callback(i):
     def rangefinder_callback(range):
         global rangefinder_callback_mutex_misses
-        mutex_acquired = state_mutex.acquire(blocking=False)
+        mutex_acquired = state_mutex.acquire(blocking=True)
         # Quickly terminate if mutex was not acquired. This is banking on the fact
         # that ros does not allow multiple instances of the same callback function.
         # Otherwise, we would have to use atomic types.
@@ -638,11 +638,11 @@ target_critic.set_weights(critic_model.get_weights())
 
 # Save the weights before running so that
 # we can load them in the main loop
-actor_model.save_weights(actor_model_weights_filepath)
-critic_model.save_weights(criticl_model_weights_filepath)
+actor_model.save(actor_model_weights_filepath)
+critic_model.save(criticl_model_weights_filepath)
 
-target_actor.save_weights(target_actor_weights_filepath)
-target_critic.save_weights(target_critic_weights_filepath)
+target_actor.save(target_actor_weights_filepath)
+target_critic.save(target_critic_weights_filepath)
 
 # Learning rate for actor-critic models
 critic_lr = 0.002
@@ -664,10 +664,10 @@ identifier = datetime.datetime.now().isoformat()
 
 for gazebo_world_filepath in cirriculum_worlds:
     # load weights from saved location
-    actor_model.load_weights(actor_model_weights_filepath)
-    critic_model.load_weights(criticl_model_weights_filepath)
-    target_actor.load_weights(target_actor_weights_filepath)
-    target_critic.load_weights(target_critic_weights_filepath)
+    actor_model = tf.keras.models.load_model(actor_model_weights_filepath)
+    critic_model = tf.keras.models.load_model(criticl_model_weights_filepath)
+    target_actor = tf.keras.models.load_model(target_actor_weights_filepath)
+    target_critic = tf.keras.models.load_model(target_critic_weights_filepath)
 
     buffer = Buffer(50000, 64)
 
@@ -683,7 +683,10 @@ for gazebo_world_filepath in cirriculum_worlds:
         prev_state: State = episode_init_and_grab_state(gazebo_world_filepath)
         episodic_reward = 0
 
-        while not rospy.is_shutdown():
+        num_actions_taken = 0
+        num_actions_per_ep = 4
+
+        while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             # learning has completed or episode has restarted;
             # we can unpause physics engine
             service_proxies.unpause_physics()
@@ -697,6 +700,7 @@ for gazebo_world_filepath in cirriculum_worlds:
             # Recieve state and reward from environment.
             local_state, reward, done = episode_take_action(action)
             print("[TRACE] action taken")
+            num_actions_taken += 1
             # pause physics engine while learning is taking place
             service_proxies.pause_physics()
 
