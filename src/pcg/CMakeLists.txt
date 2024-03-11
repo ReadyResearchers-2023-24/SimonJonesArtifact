@@ -117,8 +117,8 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/generate.py
-  scripts/broadcast.py
+  scripts/generate
+  scripts/broadcast
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
