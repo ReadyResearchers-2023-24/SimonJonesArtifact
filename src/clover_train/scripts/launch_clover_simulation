@@ -24,5 +24,5 @@ if "-h" in sys.argv:
 
 rospy.init_node("launch_clover_simulation")
 
-launch_clover_simulation(sys.argv[1])
+launch_clover_simulation(sys.argv[1], gui=False)
 rospy.spin()

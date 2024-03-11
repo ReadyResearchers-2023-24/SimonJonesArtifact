@@ -12,7 +12,7 @@ import time
 NODE_KILL_TIMEOUT = 60  # seconds
 
 
-def launch_clover_simulation(gazebo_world_filepath: str = None) -> None:
+def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True) -> None:
     """Launch all nodes related to clover_simulation."""
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     roslaunch.configure_logging(uuid)
@@ -24,6 +24,8 @@ def launch_clover_simulation(gazebo_world_filepath: str = None) -> None:
     )
     # create list with cli arguments
     cli_args = [clover_simulation_launch_path]
+    # enable/disable GUI
+    cli_args.append(f"gui:={str(gui).lower()}")
     # if supplied, add filepath for gazebo .world file
     if gazebo_world_filepath is not None:
         cli_args.append(f"gazebo_world_filepath:={gazebo_world_filepath}")

@@ -553,7 +553,7 @@ def episode_init_and_grab_state(gazebo_world_filepath: str) -> State:
         # kill simulation
         simulation_nodes.kill_clover_simulation()
     # start simulation
-    simulation_nodes.launch_clover_simulation(gazebo_world_filepath)
+    simulation_nodes.launch_clover_simulation(gazebo_world_filepath, gui=False)
     # await simulation to come online by reinitializing service proxies
     service_proxies.init()
     state_mutex.acquire()
