@@ -22,7 +22,11 @@ if "-h" in sys.argv:
         launch_clover_simulation <path-to-gazebo-world>
     """)
 
+gui = False
+if "--gui=true" in sys.argv:
+    gui = True
+
 rospy.init_node("launch_clover_simulation")
 
-launch_clover_simulation(sys.argv[1], gui=False)
+launch_clover_simulation(sys.argv[1], gui=gui)
 rospy.spin()
