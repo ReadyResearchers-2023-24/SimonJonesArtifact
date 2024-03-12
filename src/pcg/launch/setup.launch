@@ -1,5 +1,0 @@
-<launch>
-  <!-- force installing packages; otherwise, only installs if venv directory does not exist -->
-  <param name="force" type="bool" value="false" />
-  <node pkg="pcg" type="setup.py" ns="pcg" name="setup" output="screen" />
-</launch>
