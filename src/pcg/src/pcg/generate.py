@@ -177,7 +177,7 @@ def generate_room(
         random_free_poses = world_gen.world.get_random_free_spots(
             model=clover_sized_box_model,
             n_spots=100,
-        )[0]
+        )
 
         for random_free_pose in random_free_poses:
             # determine if free space is within the room workspace (inside the room)
@@ -192,15 +192,15 @@ def generate_room(
 
 
     rospack = rospkg.RosPack()
-    clover_simulation_path = rospack.get_path("clover_simulation")
+    pcg_path = rospack.get_path("pcg")
 
     if worlds_dir_path is None:
         worlds_dir_path = os.path.join(
-            clover_simulation_path, "resources", "worlds"
+            pcg_path, "resources", "worlds"
         )
     if models_dir_path is None:
         models_dir_path = os.path.join(
-            clover_simulation_path, "models"
+            pcg_path, "models"
         )
 
     # save world

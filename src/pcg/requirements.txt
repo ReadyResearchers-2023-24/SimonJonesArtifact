@@ -1,0 +1,5 @@
+pcg_gazebo==0.7.12
+pyglet<2
+markupsafe==2.0.1
+docopt==0.6.2
+trimesh[easy]==3.16.4

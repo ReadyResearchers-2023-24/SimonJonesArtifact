@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 
-from pcg import pcg
+import subprocess
+import rospkg
+import os
+import sys
 
-if __name__ == "__main__":
-    pcg()
+rospack = rospkg.RosPack()
+pcg_path = rospack.get_path("pcg")
+# move to pcg package directory
+os.chdir(pcg_path)
+args = ["sh", "./scripts/generate.py.sh", *sys.argv[1:]]
+if subprocess.run(args).returncode != 0:
+    raise Exception("An error occured with running the script.")
