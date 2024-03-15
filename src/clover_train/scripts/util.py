@@ -1,6 +1,6 @@
 import math
 import os
-import datetime
+import subprocess
 
 from typing import List, Any, Tuple, Dict
 from dataclasses import fields, asdict
@@ -62,11 +62,10 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
         os.path.expanduser("~"), "clover_train_metadata"
     )
     os.makedirs(clover_train_metadata_dir, exist_ok=True)
-    now_formatted = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     clover_train_metadata_data_path = os.path.join(
-        clover_train_metadata_dir, f"clover_train-{now_formatted}.txt"
+        clover_train_metadata_dir, f"clover_train-{identifier}.txt"
     )
-    with open(clover_train_metadata_data_path, "w") as file:
+    with open(clover_train_metadata_data_path, "a+") as file:
         # write headers
         file.write(" ".join([key for key in metadata]))
         file.write("\n")
@@ -75,3 +74,8 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
         for row in metadata_rows:
             file.write(" ".join([str(i) for i in row]))
             file.write("\n")
+
+
+def rosclean_purge() -> None:
+    """Purge ROS log files."""
+    subprocess.run(["rosclean", "purge", "-y"])

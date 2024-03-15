@@ -620,11 +620,15 @@ ou_noise = OUActionNoise(
     mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
 )
 
-actor_model_weights_filepath = "ddpg_actor.h5"
-criticl_model_weights_filepath = "ddpg_critic.h5"
+# identifier for this program's execution
+# used for saving files related to this execution
+identifier = datetime.datetime.now().isoformat()
 
-target_actor_weights_filepath = "ddpg_target_actor.h5"
-target_critic_weights_filepath = "ddpg_target_critic.h5"
+actor_model_weights_filepath = f"{identifier}-ddpg-actor.h5"
+criticl_model_weights_filepath = f"{identifier}-ddpg-critic.h5"
+
+target_actor_weights_filepath = f"{identifier}-ddpg-target-actor.h5"
+target_critic_weights_filepath = f"{identifier}-ddpg-target-critic.h5"
 
 actor_model = get_actor()
 critic_model = get_critic()
@@ -638,11 +642,11 @@ target_critic.set_weights(critic_model.get_weights())
 
 # Save the weights before running so that
 # we can load them in the main loop
-actor_model.save(actor_model_weights_filepath)
-critic_model.save(criticl_model_weights_filepath)
+actor_model.save_weights(actor_model_weights_filepath)
+critic_model.save_weights(criticl_model_weights_filepath)
 
-target_actor.save(target_actor_weights_filepath)
-target_critic.save(target_critic_weights_filepath)
+target_actor.save_weights(target_actor_weights_filepath)
+target_critic.save_weights(target_critic_weights_filepath)
 
 # Learning rate for actor-critic models
 critic_lr = 0.002
@@ -658,18 +662,16 @@ gamma = 0.99
 # Used to update target networks
 tau = 0.005
 
-# identifier for this program's execution
-# used for saving files related to this execution
-identifier = datetime.datetime.now().isoformat()
+buffer = Buffer(50000, 64)
 
 for gazebo_world_filepath in cirriculum_worlds:
+    # purge ROS log files
+    util.rosclean_purge()
     # load weights from saved location
-    actor_model = tf.keras.models.load_model(actor_model_weights_filepath)
-    critic_model = tf.keras.models.load_model(criticl_model_weights_filepath)
-    target_actor = tf.keras.models.load_model(target_actor_weights_filepath)
-    target_critic = tf.keras.models.load_model(target_critic_weights_filepath)
-
-    buffer = Buffer(50000, 64)
+    actor_model.load_weights(actor_model_weights_filepath)
+    critic_model.load_weights(criticl_model_weights_filepath)
+    target_actor.load_weights(target_actor_weights_filepath)
+    target_critic.load_weights(target_critic_weights_filepath)
 
     # To store reward history of each episode
     reward_history = {
