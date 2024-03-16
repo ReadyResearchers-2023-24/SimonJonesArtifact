@@ -9,7 +9,7 @@ import rospy
 import time
 
 
-NODE_KILL_TIMEOUT = 10  # seconds
+NODE_KILL_TIMEOUT = 30  # seconds
 
 
 def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True) -> None:

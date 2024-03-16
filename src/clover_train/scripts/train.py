@@ -743,7 +743,7 @@ for gazebo_world_filepath in cirriculum_worlds:
         while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             # learning has completed or episode has restarted;
             # we can unpause physics engine
-            # service_proxies.unpause_physics()
+            service_proxies.unpause_physics()
 
             tf_prev_state = tf.expand_dims(
                 tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
@@ -756,7 +756,7 @@ for gazebo_world_filepath in cirriculum_worlds:
             print("[TRACE] action taken")
             num_actions_taken += 1
             # pause physics engine while learning is taking place
-            # service_proxies.pause_physics()
+            service_proxies.pause_physics()
 
             buffer.record((prev_state, action, reward, local_state))
             episodic_reward += reward
