@@ -45,14 +45,14 @@ def kill_clover_simulation() -> None:
     rosnode.kill_nodes(nodes_to_kill)
     # wait until all nodes are killed
     t0 = time.time()
-    r = rospy.Rate(1)
     rospy.loginfo("[kill_clover_simulation] waiting until all nodes are killed.")
     while len(set(rosnode.get_node_names()).intersection(set(nodes_to_kill))) > 0:
         # if timeout is passed, we will assume we killed the nodes properly
         # see https://github.com/ros-simulation/gazebo_ros_pkgs/issues/751#issuecomment-635720144
         if time.time() - t0 > NODE_KILL_TIMEOUT:
             break
-        r.sleep()
+        # kill nodes
+        rosnode.kill_nodes(nodes_to_kill)
     rospy.loginfo(
         f"[kill_clover_simulation] successfully killed nodes {nodes_to_kill}."
     )

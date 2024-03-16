@@ -275,7 +275,6 @@ def base_link_contact_callback(contacts_state: ContactsState) -> None:
                 (not collision_timestamps_queue) or
                 (collision_timestamps_queue and (contacts_state.header.stamp.secs - collision_timestamps_queue[-1]) > threshold)
            ):
-            print("COLLLISISONSNOISNOSONSNOSON")
             # threshold has passed since last collision_timestamp was added, we can add another one
             collision_timestamps_queue.append(contacts_state.header.stamp.secs)
         collisions_mutex.release()
@@ -489,7 +488,7 @@ def policy(state, noise_object: OUActionNoise) -> Action:
     return Action(*np.squeeze(legal_action))
 
 
-def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) -> float:
+def episode_calculate_reward_metric(local_state: State, timeout_passed: bool, deduct_flying_low_to_ground: bool) -> float:
     global collision_timestamps_queue
     collisions_mutex.acquire()
     # count number of collisions from the past action
@@ -509,6 +508,8 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) ->
     )
     if timeout_passed:
         reward -= 1000
+    if deduct_flying_low_to_ground:
+        reward -= 2000
     reward -= n_collisions * 1000
     return reward
 
@@ -563,7 +564,6 @@ def navigate_wait(
     x: float,
     y: float,
     z: float,
-    speed: float,
     frame_id: str,
     auto_arm: bool,
     timeout: float = 0,
@@ -575,7 +575,7 @@ def navigate_wait(
         t0 = rospy.get_rostime().secs
     # begin navigating using px4's autopilot
     service_proxies.navigate(
-        x=z, y=y, z=z, speed=speed, frame_id=frame_id, auto_arm=auto_arm
+        x=x, y=y, z=z, frame_id=frame_id, auto_arm=auto_arm
     )
     # spin until we are within a certain threshold from target
     while not rospy.is_shutdown():
@@ -619,19 +619,27 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # The 'body' frame remains upright regardless of
     # the quadcopter's orientation.
     (x, y, z) = util.convert_spherical_to_cartesian(action.r, action.theta, action.phi)
-    timeout_passed = navigate_wait(
-        x=x,
-        y=y,
-        z=z,
-        speed=1,
-        frame_id="body",
-        auto_arm=True,
-        timeout=10,
-    )
+
+    # create boolean that deducts from reward if our action tries to "fly
+    # underground" or fly close to the ground
+    state_mutex.acquire()
+    deduct_flying_low_to_ground: bool = state.pz + z <= 0.5
+    state_mutex.release()
+
+    timeout_passed: bool = False
+    if not deduct_flying_low_to_ground:
+        timeout_passed = navigate_wait(
+            x=x,
+            y=y,
+            z=z,
+            frame_id="body",
+            auto_arm=True,
+            timeout=10,
+        )
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
-    reward = episode_calculate_reward_metric(local_state, timeout_passed)
+    reward = episode_calculate_reward_metric(local_state, timeout_passed, deduct_flying_low_to_ground)
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
 
@@ -712,8 +720,6 @@ tau = 0.005
 buffer = Buffer(50000, 64)
 
 for gazebo_world_filepath in cirriculum_worlds:
-    # purge ROS log files
-    util.rosclean_purge()
     # load weights from saved location
     actor_model.load_weights(actor_model_weights_filepath)
     critic_model.load_weights(criticl_model_weights_filepath)
@@ -721,15 +727,13 @@ for gazebo_world_filepath in cirriculum_worlds:
     target_critic.load_weights(target_critic_weights_filepath)
 
     # To store reward history of each episode
-    reward_history = {
-        "episodic_reward": [],
-        "average_reward": [],
-        "world_file": [],
-        "timestamp": [],
-    }
+    reward_history = []
 
     for ep in range(num_episodes_per_world):
+        # purge ROS log files
+        util.rosclean_purge()
         prev_state: State = episode_init_and_grab_state(gazebo_world_filepath)
+        print(f"[TRACE] begin episode {episode_count}")
         episodic_reward = 0
 
         # restrict each episode to achieving its goal in four steps, efficiently
@@ -739,7 +743,7 @@ for gazebo_world_filepath in cirriculum_worlds:
         while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             # learning has completed or episode has restarted;
             # we can unpause physics engine
-            service_proxies.unpause_physics()
+            # service_proxies.unpause_physics()
 
             tf_prev_state = tf.expand_dims(
                 tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
@@ -752,7 +756,7 @@ for gazebo_world_filepath in cirriculum_worlds:
             print("[TRACE] action taken")
             num_actions_taken += 1
             # pause physics engine while learning is taking place
-            service_proxies.pause_physics()
+            # service_proxies.pause_physics()
 
             buffer.record((prev_state, action, reward, local_state))
             episodic_reward += reward
@@ -768,14 +772,23 @@ for gazebo_world_filepath in cirriculum_worlds:
                 break
 
             prev_state = local_state
-        episode_count += 1
 
-        reward_history["episodic_reward"].append(episodic_reward)
+        reward_history.append(episodic_reward)
         # Mean of last 40 episodes
-        avg_reward = np.mean(reward_history["episodic_reward"][-40:])
-        reward_history["average_reward"].append(avg_reward)
-        reward_history["world_file"].append(gazebo_world_filepath)
-        reward_history["timestamp"].append(datetime.datetime.now().isoformat())
+        avg_reward = np.mean(reward_history[-40:])
+
+        metadata_record = {
+            "episode": episode_count,
+            "episodic_reward": episodic_reward,
+            "average_reward": avg_reward,
+            "world_file": gazebo_world_filepath,
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+
+        # save training metadata; enabling headers if we have just finished the first world iteration
+        util.save_clover_train_metadata(metadata_record, identifier, with_headers=(episode_count == 0))
+
+        episode_count += 1
 
     # Save the weights
     actor_model.save_weights(actor_model_weights_filepath)
@@ -783,9 +796,6 @@ for gazebo_world_filepath in cirriculum_worlds:
 
     target_actor.save_weights(target_actor_weights_filepath)
     target_critic.save_weights(target_critic_weights_filepath)
-
-    # save training metadata
-    util.save_clover_train_metadata(reward_history, identifier, with_headers=(True if episode_count == 1 else False))
 
 rospy.signal_shutdown(f"Total episodes: {num_episodes_per_world}; Signaling shut down.")
 
