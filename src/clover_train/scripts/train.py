@@ -13,9 +13,10 @@ import tensorflow as tf
 import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
+from gazebo_msgs.msg import ContactState, ContactsState
 from tensorflow.keras import layers
 from threading import Lock, Thread
-from typing import Tuple
+from typing import Tuple, List, Callable
 from dataclasses import dataclass
 from pymavlink import mavutil
 from mavros_msgs import msg as mavros_msg
@@ -144,7 +145,7 @@ def warn_if_too_many_mutex_misses(mutex_misses):
 velocity_callback_mutex_misses = 0
 
 
-def velocity_callback(velocity):
+def velocity_callback(velocity: TwistStamped) -> None:
     global velocity_callback_mutex_misses
     mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -165,7 +166,7 @@ def velocity_callback(velocity):
     state_mutex.release()
 
 
-def velocity_listener():
+def velocity_listener() -> None:
     # subscribe to mavros's pose topic
     rospy.Subscriber(
         "/mavros/local_position/velocity_local", TwistStamped, velocity_callback
@@ -180,7 +181,7 @@ velocity_thread.start()
 local_position_callback_mutex_misses = 0
 
 
-def local_position_callback(local_position):
+def local_position_callback(local_position: PoseStamped) -> None:
     global local_position_callback_mutex_misses
     mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -204,7 +205,7 @@ def local_position_callback(local_position):
     state_mutex.release()
 
 
-def local_position_listener():
+def local_position_listener() -> None:
     # subscribe to mavros's pose topic
     rospy.Subscriber(
         "/mavros/local_position/pose", PoseStamped, local_position_callback
@@ -222,8 +223,8 @@ rangefinder_callback_mutex_misses = 0
 
 # FIXME: maybe use separate cpp module to transform range to be along the body frame?
 # FIXME: maybe transform range measurements here?
-def rangefinder_i_callback(i):
-    def rangefinder_callback(range):
+def rangefinder_i_callback(i: int) -> Callable[[sensor_msg.Range], None]:
+    def rangefinder_callback(range: sensor_msg.Range) -> None:
         global rangefinder_callback_mutex_misses
         mutex_acquired = state_mutex.acquire(blocking=True)
         # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -242,7 +243,7 @@ def rangefinder_i_callback(i):
     return rangefinder_callback
 
 
-def rangefinder_listener():
+def rangefinder_listener() -> None:
     # subscribe to mavros's pose topic
     for i in range(10):
         rospy.Subscriber(
@@ -253,6 +254,43 @@ def rangefinder_listener():
 
 rangefinder_thread = Thread(target=rangefinder_listener, args=())
 rangefinder_thread.start()
+
+# times the callback failed to acquire the mutex
+base_link_contact_callback_mutex_misses = 0
+
+collisions_mutex = Lock()
+# list of collisions indicated by their timestamps in seconds
+collision_timestamps_queue: List[int] = []
+
+
+def base_link_contact_callback(contacts_state: ContactsState) -> None:
+    global collision_timestamps_queue
+    if contacts_state.states:
+        collisions_mutex.acquire()
+        # We have a collision. Store this event, without storing any
+        # collision-specific information.
+        threshold = 1 # s
+        # if queue is empty or first el of queue is old enough, we can add another
+        if (
+                (not collision_timestamps_queue) or
+                (collision_timestamps_queue and (contacts_state.header.stamp.secs - collision_timestamps_queue[-1]) > threshold)
+           ):
+            print("COLLLISISONSNOISNOSONSNOSON")
+            # threshold has passed since last collision_timestamp was added, we can add another one
+            collision_timestamps_queue.append(contacts_state.header.stamp.secs)
+        collisions_mutex.release()
+
+
+def base_link_contact_listener() -> None:
+    # subscribe to mavros's pose topic
+    rospy.Subscriber(
+        "/base_link_contact", ContactsState, base_link_contact_callback
+    )
+    rospy.spin()
+
+
+base_link_contact_thread = Thread(target=base_link_contact_listener, args=())
+base_link_contact_thread.start()
 
 
 class OUActionNoise:
@@ -452,6 +490,13 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
 
 def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) -> float:
+    global collision_timestamps_queue
+    collisions_mutex.acquire()
+    # count number of collisions from the past action
+    n_collisions = len(collision_timestamps_queue)
+    # clean collision_timestamps_queue
+    collision_timestamps_queue = []
+    collisions_mutex.release()
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     desired_pos = {"x": 0, "y": 0, "z": 1}
     distance_from_desired_pos = (
@@ -464,6 +509,7 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) ->
     )
     if timeout_passed:
         reward -= 1000
+    reward -= n_collisions * 1000
     return reward
 
 
@@ -585,7 +631,6 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
-    # pause physics to keep drone from drifting away
     reward = episode_calculate_reward_metric(local_state, timeout_passed)
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
@@ -655,7 +700,9 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-num_episodes = 10
+# running count of how many episodes we've done
+episode_count = 0
+num_episodes_per_world = 100
 
 # Discount factor for future rewards
 gamma = 0.99
@@ -681,10 +728,11 @@ for gazebo_world_filepath in cirriculum_worlds:
         "timestamp": [],
     }
 
-    for ep in range(num_episodes):
+    for ep in range(num_episodes_per_world):
         prev_state: State = episode_init_and_grab_state(gazebo_world_filepath)
         episodic_reward = 0
 
+        # restrict each episode to achieving its goal in four steps, efficiently
         num_actions_taken = 0
         num_actions_per_ep = 4
 
@@ -720,6 +768,7 @@ for gazebo_world_filepath in cirriculum_worlds:
                 break
 
             prev_state = local_state
+        episode_count += 1
 
         reward_history["episodic_reward"].append(episodic_reward)
         # Mean of last 40 episodes
@@ -736,10 +785,11 @@ for gazebo_world_filepath in cirriculum_worlds:
     target_critic.save_weights(target_critic_weights_filepath)
 
     # save training metadata
-    util.save_clover_train_metadata(reward_history, identifier)
+    util.save_clover_train_metadata(reward_history, identifier, with_headers=(True if episode_count == 1 else False))
 
-rospy.signal_shutdown(f"Total episodes: {num_episodes}; Signaling shut down.")
+rospy.signal_shutdown(f"Total episodes: {num_episodes_per_world}; Signaling shut down.")
 
 local_position_thread.join()
 velocity_thread.join()
 rangefinder_thread.join()
+base_link_contact_thread.join()

@@ -9,7 +9,7 @@ import rospy
 import time
 
 
-NODE_KILL_TIMEOUT = 60  # seconds
+NODE_KILL_TIMEOUT = 10  # seconds
 
 
 def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True) -> None:
@@ -26,6 +26,7 @@ def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True
     cli_args = [clover_simulation_launch_path]
     # enable/disable GUI
     cli_args.append(f"gui:={str(gui).lower()}")
+    cli_args.append("use_master_node:=true")
     # if supplied, add filepath for gazebo .world file
     if gazebo_world_filepath is not None:
         cli_args.append(f"gazebo_world_filepath:={gazebo_world_filepath}")
@@ -49,7 +50,7 @@ def kill_clover_simulation() -> None:
     while len(set(rosnode.get_node_names()).intersection(set(nodes_to_kill))) > 0:
         # if timeout is passed, we will assume we killed the nodes properly
         # see https://github.com/ros-simulation/gazebo_ros_pkgs/issues/751#issuecomment-635720144
-        if time.time() > t0 > NODE_KILL_TIMEOUT:
+        if time.time() - t0 > NODE_KILL_TIMEOUT:
             break
         r.sleep()
     rospy.loginfo(
