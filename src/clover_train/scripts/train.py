@@ -415,8 +415,9 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    relu_initializer_uniform = tf.random_uniform_initializer(minval=0, maxval=1)
-    relu_initializer_towards_zero = tf.random_uniform_initializer(minval=0, maxval=0.2)
+    relu_initializer_r = tf.random_uniform_initializer(minval=0.5, maxval=1)
+    relu_initializer_theta = tf.random_uniform_initializer(minval=0, maxval=0.2)
+    relu_initializer_phi = tf.random_uniform_initializer(minval=0, maxval=1)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
@@ -424,13 +425,13 @@ def get_actor():
     # initialize relu outputs for actions with range [0, x]
     # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_r)(
             out
         ),
         layers.Dense(
-            1, activation="relu", kernel_initializer=relu_initializer_towards_zero
+            1, activation="relu", kernel_initializer=relu_initializer_theta
         )(out),
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_phi)(
             out
         ),
     ]
@@ -668,9 +669,17 @@ def calibrate_accelerometers() -> None:
             return True
 
 
-std_dev = 0.2
+# choose each stdev such that
+#  mean + 4 * sigma = max or
+#  mean - 4 * sigma = min
+std_dev = [
+    1/4 * (action_r_max - (action_r_max - action_r_min) / 2),
+    1/4 * (action_theta_max - (action_theta_max - action_theta_min) / 2),
+    1/4 * (action_phi_max - (action_phi_max - action_phi_min) / 2),
+]
+
 ou_noise = OUActionNoise(
-    mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
+    mean=np.array(num_actions), std_deviation=np.array(std_dev) * np.ones(num_actions)
 )
 
 # identifier for this program's execution
@@ -740,21 +749,26 @@ for gazebo_world_filepath in cirriculum_worlds:
         num_actions_taken = 0
         num_actions_per_ep = 4
 
-        while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
-            # learning has completed or episode has restarted;
-            # we can unpause physics engine
-            service_proxies.unpause_physics()
+        # take off to get drone off of ground for first step
+        navigate_wait(x=0, y=0, z=0.5, frame_id="body", auto_arm=True)
 
+        while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             tf_prev_state = tf.expand_dims(
                 tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
             )
 
             action = policy(tf_prev_state, ou_noise)
             print("[TRACE] policy calculated")
+
+            # calculations completed;
+            # we can unpause physics engine
+            service_proxies.unpause_physics()
+
             # Recieve state and reward from environment.
             local_state, reward, done = episode_take_action(action)
             print("[TRACE] action taken")
             num_actions_taken += 1
+
             # pause physics engine while learning is taking place
             service_proxies.pause_physics()
 
