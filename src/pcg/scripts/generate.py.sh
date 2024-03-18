@@ -5,7 +5,7 @@
 
 # handle sigint and sigterm; kill python proc
 control_c() {
-  kill -9 $PID
+  kill -9 $(ps aux | grep "[p]ython3 src/pcg/main.py" | awk '{print $2}')
   exit
 }
 

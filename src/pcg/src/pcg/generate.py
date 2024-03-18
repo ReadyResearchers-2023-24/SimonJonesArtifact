@@ -87,7 +87,7 @@ def generate_room(
         polygon=wall_polygon,
         thickness=wall_thickness,
         height=wall_height,
-        pose=[0, 0, wall_height / 2.0, 0, 0, 0],
+        pose=[0, 0, 0, 0, 0, 0],
         extrude_boundaries=True,
         color="xkcd",
     )
@@ -171,6 +171,7 @@ def generate_room(
     # spawned.
     free_poses_to_persist: List[Pose] = []
     while len(free_poses_to_persist) < 2:
+        print(f"({n_rectangles} rectangles) looking for random free spots...")
         # take 100 random free spots to determine free spots in the map
 
         random_free_poses = world_gen.world.get_random_free_spots(
@@ -210,7 +211,7 @@ def generate_room(
     )
 
     path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
-    modify_physics_and_add_parquet_plane(path_to_world=path_to_world)
+    customize_world_file(path_to_world=path_to_world)
     create_free_poses_xml(path_to_xml=f"{path_to_world}-free-poses.xml", free_poses_to_persist=free_poses_to_persist)
 
 
@@ -226,7 +227,7 @@ def create_free_poses_xml(path_to_xml: str, free_poses_to_persist: List[Pose]) -
     tree.write(path_to_xml)
 
 
-def modify_physics_and_add_parquet_plane(path_to_world: str) -> None:
+def customize_world_file(path_to_world: str) -> None:
     """Modify just-written xml world file to include custom parameters."""
     new_physics = """
     <physics name='default_physics' default='0' type='ode'>
@@ -251,10 +252,24 @@ def modify_physics_and_add_parquet_plane(path_to_world: str) -> None:
         <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
     </physics>
     """
+    scene = """
+    <scene>
+      <ambient>0.8 0.8 0.8 1</ambient>
+      <background>0.8 0.9 1 1</background>
+      <shadows>false</shadows>
+      <grid>false</grid>
+      <origin_visual>false</origin_visual>
+    </scene>
+    """
     parquet_plane = """
     <include>
       <uri>model://parquet_plane</uri>
       <pose>0 0 0 0 0</pose>
+    </include>
+    """
+    sun = """
+    <include>
+      <uri>model://sun</uri>
     </include>
     """
     tree = ET.parse(path_to_world)
@@ -265,12 +280,16 @@ def modify_physics_and_add_parquet_plane(path_to_world: str) -> None:
     # remove old physics params
     world.remove(old_physics)
     # parse physics params and parquet_plane model from string into xml
-    new_physics = ET.fromstring(new_physics)
-    parquet_plane = ET.fromstring(parquet_plane)
+    new_physics_xml = ET.fromstring(new_physics)
+    scene_xml = ET.fromstring(scene)
+    parquet_plane_xml = ET.fromstring(parquet_plane)
+    sun_xml = ET.fromstring(sun)
 
     # append custom physics params and parquet_plane model into xml file
-    world.append(new_physics)
-    world.append(parquet_plane)
+    world.append(new_physics_xml)
+    world.append(scene_el)
+    world.append(parquet_plane_el)
+    world.append(sun_el)
 
     # write modified element tree to original filepath
     tree.write(path_to_world)
