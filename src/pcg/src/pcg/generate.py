@@ -211,7 +211,7 @@ def generate_room(
 
     path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
     modify_physics_and_add_parquet_plane(path_to_world=path_to_world)
-    create_free_poses_xml(path_to_xml=f"{path_to_world}-free-poses.xml", free_poses_to_persist)
+    create_free_poses_xml(path_to_xml=f"{path_to_world}-free-poses.xml", free_poses_to_persist=free_poses_to_persist)
 
 
 
