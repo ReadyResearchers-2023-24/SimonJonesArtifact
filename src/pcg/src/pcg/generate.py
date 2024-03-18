@@ -167,8 +167,6 @@ def generate_room(
 
     world_gen.run_engines(attach_models=True)
 
-
-
     # find random points within the workspace where the clover model could be
     # spawned.
     free_poses_to_persist: List[Pose] = []
@@ -191,8 +189,6 @@ def generate_room(
                 pose_to_persist.position.y = random_free_pose.y
                 free_poses_to_persist.append(pose_to_persist)
 
-    create_free_poses_xml(path_to_xml = os.path.join(worlds_dir_path, f"{filename}.world-free-poses.xml"))
-
     rospack = rospkg.RosPack()
     pcg_path = rospack.get_path("pcg")
 
@@ -213,9 +209,10 @@ def generate_room(
         with_default_ground_plane=False,
     )
 
-    modify_physics_and_add_parquet_plane(
-        path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
-    )
+    path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
+    modify_physics_and_add_parquet_plane(path_to_world=path_to_world)
+    create_free_poses_xml(path_to_xml=f"{path_to_world}-free-poses.xml", free_poses_to_persist)
+
 
 
 def create_free_poses_xml(path_to_xml: str, free_poses_to_persist: List[Pose]) -> None:
