@@ -87,7 +87,7 @@ def generate_room(
         polygon=wall_polygon,
         thickness=wall_thickness,
         height=wall_height,
-        pose=[0, 0, 0, 0, 0, 0],
+        pose=[0, 0, wall_height / 2, 0, 0, 0],
         extrude_boundaries=True,
         color="xkcd",
     )
@@ -287,9 +287,9 @@ def customize_world_file(path_to_world: str) -> None:
 
     # append custom physics params and parquet_plane model into xml file
     world.append(new_physics_xml)
-    world.append(scene_el)
-    world.append(parquet_plane_el)
-    world.append(sun_el)
+    world.append(scene_xml)
+    world.append(parquet_plane_xml)
+    world.append(sun_xml)
 
     # write modified element tree to original filepath
     tree.write(path_to_world)
