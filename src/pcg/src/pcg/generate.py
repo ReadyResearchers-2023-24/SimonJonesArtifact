@@ -8,6 +8,7 @@ from typing import List
 
 import random
 import rospy
+import shutil
 import os
 import rospkg
 import xml.etree.ElementTree as ET
@@ -206,9 +207,13 @@ def generate_room(
     world_gen.export_world(
         filename=filename,
         output_dir=worlds_dir_path,
-        models_output_dir=models_dir_path,
         with_default_ground_plane=False,
     )
+
+    # move models from default directory to custom one
+    gazebo_models_path = os.path.join(os.path.expanduser("~"), ".gazebo", "models")
+    shutil.move(os.path.join(gazebo_models_path, f"walls_{n_rectangles}"), models_dir_path)
+    shutil.move(os.path.join(gazebo_models_path, f"ceiling_{n_rectangles}"), models_dir_path)
 
     path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
     customize_world_file(path_to_world=path_to_world)
@@ -267,11 +272,6 @@ def customize_world_file(path_to_world: str) -> None:
       <pose>0 0 0 0 0</pose>
     </include>
     """
-    sun = """
-    <include>
-      <uri>model://sun</uri>
-    </include>
-    """
     tree = ET.parse(path_to_world)
     sdf = tree.getroot()
     world = sdf.find("world")
@@ -283,13 +283,11 @@ def customize_world_file(path_to_world: str) -> None:
     new_physics_xml = ET.fromstring(new_physics)
     scene_xml = ET.fromstring(scene)
     parquet_plane_xml = ET.fromstring(parquet_plane)
-    sun_xml = ET.fromstring(sun)
 
     # append custom physics params and parquet_plane model into xml file
     world.append(new_physics_xml)
     world.append(scene_xml)
     world.append(parquet_plane_xml)
-    world.append(sun_xml)
 
     # write modified element tree to original filepath
     tree.write(path_to_world)
