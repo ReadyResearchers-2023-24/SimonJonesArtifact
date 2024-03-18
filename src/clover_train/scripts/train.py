@@ -13,9 +13,10 @@ import tensorflow as tf
 import util
 
 from geometry_msgs.msg import PoseStamped, TwistStamped, Pose
+from gazebo_msgs.msg import ContactState, ContactsState
 from tensorflow.keras import layers
 from threading import Lock, Thread
-from typing import Tuple
+from typing import Tuple, List, Callable
 from dataclasses import dataclass
 from pymavlink import mavutil
 from mavros_msgs import msg as mavros_msg
@@ -146,7 +147,7 @@ def warn_if_too_many_mutex_misses(mutex_misses):
 velocity_callback_mutex_misses = 0
 
 
-def velocity_callback(velocity):
+def velocity_callback(velocity: TwistStamped) -> None:
     global velocity_callback_mutex_misses
     mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -167,7 +168,7 @@ def velocity_callback(velocity):
     state_mutex.release()
 
 
-def velocity_listener():
+def velocity_listener() -> None:
     # subscribe to mavros's pose topic
     rospy.Subscriber(
         "/mavros/local_position/velocity_local", TwistStamped, velocity_callback
@@ -182,7 +183,7 @@ velocity_thread.start()
 local_position_callback_mutex_misses = 0
 
 
-def local_position_callback(local_position):
+def local_position_callback(local_position: PoseStamped) -> None:
     global local_position_callback_mutex_misses
     mutex_acquired = state_mutex.acquire(blocking=True)
     # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -206,7 +207,7 @@ def local_position_callback(local_position):
     state_mutex.release()
 
 
-def local_position_listener():
+def local_position_listener() -> None:
     # subscribe to mavros's pose topic
     rospy.Subscriber(
         "/mavros/local_position/pose", PoseStamped, local_position_callback
@@ -224,8 +225,8 @@ rangefinder_callback_mutex_misses = 0
 
 # FIXME: maybe use separate cpp module to transform range to be along the body frame?
 # FIXME: maybe transform range measurements here?
-def rangefinder_i_callback(i):
-    def rangefinder_callback(range):
+def rangefinder_i_callback(i: int) -> Callable[[sensor_msg.Range], None]:
+    def rangefinder_callback(range: sensor_msg.Range) -> None:
         global rangefinder_callback_mutex_misses
         mutex_acquired = state_mutex.acquire(blocking=True)
         # Quickly terminate if mutex was not acquired. This is banking on the fact
@@ -244,7 +245,7 @@ def rangefinder_i_callback(i):
     return rangefinder_callback
 
 
-def rangefinder_listener():
+def rangefinder_listener() -> None:
     # subscribe to mavros's pose topic
     for i in range(10):
         rospy.Subscriber(
@@ -255,6 +256,42 @@ def rangefinder_listener():
 
 rangefinder_thread = Thread(target=rangefinder_listener, args=())
 rangefinder_thread.start()
+
+# times the callback failed to acquire the mutex
+base_link_contact_callback_mutex_misses = 0
+
+collisions_mutex = Lock()
+# list of collisions indicated by their timestamps in seconds
+collision_timestamps_queue: List[int] = []
+
+
+def base_link_contact_callback(contacts_state: ContactsState) -> None:
+    global collision_timestamps_queue
+    if contacts_state.states:
+        collisions_mutex.acquire()
+        # We have a collision. Store this event, without storing any
+        # collision-specific information.
+        threshold = 1 # s
+        # if queue is empty or first el of queue is old enough, we can add another
+        if (
+                (not collision_timestamps_queue) or
+                (collision_timestamps_queue and (contacts_state.header.stamp.secs - collision_timestamps_queue[-1]) > threshold)
+           ):
+            # threshold has passed since last collision_timestamp was added, we can add another one
+            collision_timestamps_queue.append(contacts_state.header.stamp.secs)
+        collisions_mutex.release()
+
+
+def base_link_contact_listener() -> None:
+    # subscribe to mavros's pose topic
+    rospy.Subscriber(
+        "/base_link_contact", ContactsState, base_link_contact_callback
+    )
+    rospy.spin()
+
+
+base_link_contact_thread = Thread(target=base_link_contact_listener, args=())
+base_link_contact_thread.start()
 
 
 class OUActionNoise:
@@ -380,8 +417,9 @@ def update_target(target_weights, weights, tau):
 
 def get_actor():
     # Initialize weights
-    relu_initializer_uniform = tf.random_uniform_initializer(minval=0, maxval=1)
-    relu_initializer_towards_zero = tf.random_uniform_initializer(minval=0, maxval=0.2)
+    relu_initializer_r = tf.random_uniform_initializer(minval=0.5, maxval=1)
+    relu_initializer_theta = tf.random_uniform_initializer(minval=0, maxval=0.2)
+    relu_initializer_phi = tf.random_uniform_initializer(minval=0, maxval=1)
 
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs)
@@ -389,13 +427,13 @@ def get_actor():
     # initialize relu outputs for actions with range [0, x]
     # put in list (to make extensible in case of adding more actions)
     outputs_list = [
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_r)(
             out
         ),
         layers.Dense(
-            1, activation="relu", kernel_initializer=relu_initializer_towards_zero
+            1, activation="relu", kernel_initializer=relu_initializer_theta
         )(out),
-        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_uniform)(
+        layers.Dense(1, activation="relu", kernel_initializer=relu_initializer_phi)(
             out
         ),
     ]
@@ -453,7 +491,14 @@ def policy(state, noise_object: OUActionNoise) -> Action:
     return Action(*np.squeeze(legal_action))
 
 
-def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) -> float:
+def episode_calculate_reward_metric(local_state: State, timeout_passed: bool, deduct_flying_low_to_ground: bool) -> float:
+    global collision_timestamps_queue
+    collisions_mutex.acquire()
+    # count number of collisions from the past action
+    n_collisions = len(collision_timestamps_queue)
+    # clean collision_timestamps_queue
+    collision_timestamps_queue = []
+    collisions_mutex.release()
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     distance_from_desired_pos = math.sqrt(
         (local_state.px - local_state.desired_x) ** 2
@@ -462,6 +507,9 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) ->
     reward = -100 * distance_from_desired_pos
     if timeout_passed:
         reward -= 1000
+    if deduct_flying_low_to_ground:
+        reward -= 2000
+    reward -= n_collisions * 1000
     return reward
 
 
@@ -515,7 +563,6 @@ def navigate_wait(
     x: float,
     y: float,
     z: float,
-    speed: float,
     frame_id: str,
     auto_arm: bool,
     timeout: float = 0,
@@ -527,7 +574,7 @@ def navigate_wait(
         t0 = rospy.get_rostime().secs
     # begin navigating using px4's autopilot
     service_proxies.navigate(
-        x=z, y=y, z=z, speed=speed, frame_id=frame_id, auto_arm=auto_arm
+        x=x, y=y, z=z, frame_id=frame_id, auto_arm=auto_arm
     )
     # spin until we are within a certain threshold from target
     while not rospy.is_shutdown():
@@ -590,20 +637,27 @@ def episode_take_action(action: Action) -> Tuple[State, float, bool]:
     # The 'body' frame remains upright regardless of
     # the quadcopter's orientation.
     (x, y, z) = util.convert_spherical_to_cartesian(action.r, action.theta, action.phi)
-    timeout_passed = navigate_wait(
-        x=x,
-        y=y,
-        z=z,
-        speed=1,
-        frame_id="body",
-        auto_arm=True,
-        timeout=10,
-    )
+
+    # create boolean that deducts from reward if our action tries to "fly
+    # underground" or fly close to the ground
+    state_mutex.acquire()
+    deduct_flying_low_to_ground: bool = state.pz + z <= 0.5
+    state_mutex.release()
+
+    timeout_passed: bool = False
+    if not deduct_flying_low_to_ground:
+        timeout_passed = navigate_wait(
+            x=x,
+            y=y,
+            z=z,
+            frame_id="body",
+            auto_arm=True,
+            timeout=10,
+        )
     state_mutex.acquire()
     local_state = copy.deepcopy(state)
     state_mutex.release()
-    # pause physics to keep drone from drifting away
-    reward = episode_calculate_reward_metric(local_state, timeout_passed)
+    reward = episode_calculate_reward_metric(local_state, timeout_passed, deduct_flying_low_to_ground)
     done = episode_calculate_if_done(local_state)
     return (local_state, reward, done)
 
@@ -632,9 +686,17 @@ def calibrate_accelerometers() -> None:
             return True
 
 
-std_dev = 0.2
+# choose each stdev such that
+#  mean + 4 * sigma = max or
+#  mean - 4 * sigma = min
+std_dev = [
+    1/4 * (action_r_max - (action_r_max - action_r_min) / 2),
+    1/4 * (action_theta_max - (action_theta_max - action_theta_min) / 2),
+    1/4 * (action_phi_max - (action_phi_max - action_phi_min) / 2),
+]
+
 ou_noise = OUActionNoise(
-    mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
+    mean=np.array(num_actions), std_deviation=np.array(std_dev) * np.ones(num_actions)
 )
 
 # identifier for this program's execution
@@ -672,7 +734,9 @@ actor_lr = 0.001
 critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
 actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
-num_episodes = 10
+# running count of how many episodes we've done
+episode_count = 0
+num_episodes_per_world = 100
 
 # Discount factor for future rewards
 gamma = 0.99
@@ -682,8 +746,6 @@ tau = 0.005
 buffer = Buffer(50000, 64)
 
 for gazebo_world_filepath in cirriculum_worlds:
-    # purge ROS log files
-    util.rosclean_purge()
     # load weights from saved location
     actor_model.load_weights(actor_model_weights_filepath)
     critic_model.load_weights(criticl_model_weights_filepath)
@@ -691,35 +753,39 @@ for gazebo_world_filepath in cirriculum_worlds:
     target_critic.load_weights(target_critic_weights_filepath)
 
     # To store reward history of each episode
-    reward_history = {
-        "episodic_reward": [],
-        "average_reward": [],
-        "world_file": [],
-        "timestamp": [],
-    }
+    reward_history = []
 
-    for ep in range(num_episodes):
+    for ep in range(num_episodes_per_world):
+        # purge ROS log files
+        util.rosclean_purge()
         prev_state: State = episode_init_and_grab_state(gazebo_world_filepath)
+        print(f"[TRACE] begin episode {episode_count}")
         episodic_reward = 0
 
+        # restrict each episode to achieving its goal in four steps, efficiently
         num_actions_taken = 0
         num_actions_per_ep = 4
 
-        while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
-            # learning has completed or episode has restarted;
-            # we can unpause physics engine
-            service_proxies.unpause_physics()
+        # take off to get drone off of ground for first step
+        navigate_wait(x=0, y=0, z=0.5, frame_id="body", auto_arm=True)
 
+        while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             tf_prev_state = tf.expand_dims(
                 tf.convert_to_tensor(util.dataclass_to_list(prev_state)), 0
             )
 
             action = policy(tf_prev_state, ou_noise)
             print("[TRACE] policy calculated")
+
+            # calculations completed;
+            # we can unpause physics engine
+            service_proxies.unpause_physics()
+
             # Recieve state and reward from environment.
             local_state, reward, done = episode_take_action(action)
             print("[TRACE] action taken")
             num_actions_taken += 1
+
             # pause physics engine while learning is taking place
             service_proxies.pause_physics()
 
@@ -738,12 +804,22 @@ for gazebo_world_filepath in cirriculum_worlds:
 
             prev_state = local_state
 
-        reward_history["episodic_reward"].append(episodic_reward)
+        reward_history.append(episodic_reward)
         # Mean of last 40 episodes
-        avg_reward = np.mean(reward_history["episodic_reward"][-40:])
-        reward_history["average_reward"].append(avg_reward)
-        reward_history["world_file"].append(gazebo_world_filepath)
-        reward_history["timestamp"].append(datetime.datetime.now().isoformat())
+        avg_reward = np.mean(reward_history[-40:])
+
+        metadata_record = {
+            "episode": episode_count,
+            "episodic_reward": episodic_reward,
+            "average_reward": avg_reward,
+            "world_file": gazebo_world_filepath,
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+
+        # save training metadata; enabling headers if we have just finished the first world iteration
+        util.save_clover_train_metadata(metadata_record, identifier, with_headers=(episode_count == 0))
+
+        episode_count += 1
 
     # Save the weights
     actor_model.save_weights(actor_model_weights_filepath)
@@ -752,11 +828,9 @@ for gazebo_world_filepath in cirriculum_worlds:
     target_actor.save_weights(target_actor_weights_filepath)
     target_critic.save_weights(target_critic_weights_filepath)
 
-    # save training metadata
-    util.save_clover_train_metadata(reward_history, identifier)
-
-rospy.signal_shutdown(f"Total episodes: {num_episodes}; Signaling shut down.")
+rospy.signal_shutdown(f"Total episodes: {num_episodes_per_world}; Signaling shut down.")
 
 local_position_thread.join()
 velocity_thread.join()
 rangefinder_thread.join()
+base_link_contact_thread.join()

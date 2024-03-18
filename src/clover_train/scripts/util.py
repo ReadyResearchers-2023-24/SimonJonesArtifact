@@ -56,13 +56,15 @@ def dataclass_to_list(the_dataclass_instance) -> List[Any]:
     return list(asdict(the_dataclass_instance).values())
 
 
-def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> None:
+def save_clover_train_metadata(metadata_record: Dict[str, Any], identifier: str, with_headers: bool = False) -> None:
     """
     Save training run metadata in a file unique to the current time.
 
-    Any kind of `metadata` can be provided; the columns will be dynamically named in the file.
-
-    file_id: identifier to make the file unique, e.g., the current date and time in ISO format
+    metadata: single record with column names. If `with_headers` enabled, these
+        column names will be written first.
+    identifier: str: identifier to make the file unique, e.g., the current date
+        and time in ISO format
+    with_headers: bool: set true to append headers to beginning
     """
     clover_train_metadata_dir = os.path.join(
         os.path.expanduser("~"), "clover_train_metadata"
@@ -72,14 +74,13 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
         clover_train_metadata_dir, f"clover_train-{identifier}.txt"
     )
     with open(clover_train_metadata_data_path, "a+") as file:
-        # write headers
-        file.write(" ".join([key for key in metadata]))
-        file.write("\n")
-        # convert list of columns into list of rows
-        metadata_rows = [list(row_tuple) for row_tuple in zip(*metadata.values())]
-        for row in metadata_rows:
-            file.write(" ".join([str(i) for i in row]))
+        if with_headers:
+            # write headers
+            file.write(" ".join([key for key in metadata_record]))
             file.write("\n")
+        # write metadata_record
+        file.write(" ".join([str(value) for value in metadata_record.values()]))
+        file.write("\n")
 
 
 def rosclean_purge() -> None:

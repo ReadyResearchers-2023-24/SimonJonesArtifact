@@ -26,6 +26,7 @@ def init():
     """Create service proxies"""
     # wait for /gazebo/reset_world to become available
     rospy.wait_for_service("/gazebo/reset_world")
+    rospy.wait_for_service("/navigate")
     # https://github.com/CopterExpress/clover/blob/master/clover/srv/GetTelemetry.srv
     globals()["get_telemetry"] = rospy.ServiceProxy(
         "get_telemetry", clover_srv.GetTelemetry
