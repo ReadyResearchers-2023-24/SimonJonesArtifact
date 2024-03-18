@@ -10,6 +10,7 @@ import random
 import rospy
 import os
 import rospkg
+import xml.etree.ElementTree as ET
 
 
 rospy.init_node("generate")
@@ -166,12 +167,12 @@ def generate_room(
 
     world_gen.run_engines(attach_models=True)
 
-    # FIXME: publish this in the form of a service or topic
-    # FIXME: publish file namees of maps in the form of a service or topic
-    # FIXME: test if this takes too long
 
-    free_poses_to_broadcast: List[Pose] = []
-    while len(free_poses_to_broadcast) < 2:
+
+    # find random points within the workspace where the clover model could be
+    # spawned.
+    free_poses_to_persist: List[Pose] = []
+    while len(free_poses_to_persist) < 2:
         # take 100 random free spots to determine free spots in the map
 
         random_free_poses = world_gen.world.get_random_free_spots(
@@ -184,12 +185,13 @@ def generate_room(
             if world_gen.constraints.get("room_workspace").contains_point(
                     [random_free_pose.x, random_free_pose.y]
                 ):
-                # broadcast the valid pose within the room
-                pose_to_broadcast = Pose()
-                pose_to_broadcast.position.x = random_free_pose.x
-                pose_to_broadcast.position.y = random_free_pose.y
-                free_poses_to_broadcast.append(pose_to_broadcast)
+                # persist the valid pose within the room
+                pose_to_persist = Pose()
+                pose_to_persist.position.x = random_free_pose.x
+                pose_to_persist.position.y = random_free_pose.y
+                free_poses_to_persist.append(pose_to_persist)
 
+    create_free_poses_xml(path_to_xml = os.path.join(worlds_dir_path, f"{filename}.world-free-poses.xml"))
 
     rospack = rospkg.RosPack()
     pcg_path = rospack.get_path("pcg")
@@ -210,3 +212,68 @@ def generate_room(
         models_output_dir=models_dir_path,
         with_default_ground_plane=False,
     )
+
+    modify_physics_and_add_parquet_plane(
+        path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
+    )
+
+
+def create_free_poses_xml(path_to_xml: str, free_poses_to_persist: List[Pose]) -> None:
+    """Persist calculated free poses in xml format in the same directory where worlds are stored."""
+    poses_strs = [f"<pose><x>{p.position.x}</x><y>{p.position.y}</y></pose>" for p in free_poses_to_persist]
+    poses_elements = [ET.fromstring(ps) for ps in poses_strs]
+    root = ET.Element("poses")
+    for e in poses_elements:
+        root.append(e)
+    tree = ET.ElementTree(root)
+    tree.write(path_to_xml)
+
+
+def modify_physics_and_add_parquet_plane(path_to_world: str) -> None:
+    """Modify just-written xml world file to include custom parameters."""
+    new_physics = """
+    <physics name='default_physics' default='0' type='ode'>
+        <gravity>0 0 -9.8066</gravity>
+        <ode>
+        <solver>
+            <type>quick</type>
+            <iters>10</iters>
+            <sor>1.3</sor>
+            <use_dynamic_moi_rescaling>0</use_dynamic_moi_rescaling>
+        </solver>
+        <constraints>
+            <cfm>0</cfm>
+            <erp>0.2</erp>
+            <contact_max_correcting_vel>100</contact_max_correcting_vel>
+            <contact_surface_layer>0.001</contact_surface_layer>
+        </constraints>
+        </ode>
+        <max_step_size>0.004</max_step_size>
+        <real_time_factor>1</real_time_factor>
+        <real_time_update_rate>250</real_time_update_rate>
+        <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
+    </physics>
+    """
+    parquet_plane = """
+    <include>
+      <uri>model://parquet_plane</uri>
+      <pose>0 0 0 0 0</pose>
+    </include>
+    """
+    tree = ET.parse(path_to_world)
+    sdf = tree.getroot()
+    world = sdf.find("world")
+    # parse out old physics params from xml file
+    old_physics = world.find("physics")
+    # remove old physics params
+    world.remove(old_physics)
+    # parse physics params and parquet_plane model from string into xml
+    new_physics = ET.fromstring(new_physics)
+    parquet_plane = ET.fromstring(parquet_plane)
+
+    # append custom physics params and parquet_plane model into xml file
+    world.append(new_physics)
+    world.append(parquet_plane)
+
+    # write modified element tree to original filepath
+    tree.write(path_to_world)

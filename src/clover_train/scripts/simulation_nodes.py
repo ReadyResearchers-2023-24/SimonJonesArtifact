@@ -8,11 +8,13 @@ import rospkg
 import rospy
 import time
 
+from geometry_msgs.msg import Pose
+
 
 NODE_KILL_TIMEOUT = 60  # seconds
 
 
-def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True) -> None:
+def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True, clover_pose: Pose = None) -> None:
     """Launch all nodes related to clover_simulation."""
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     roslaunch.configure_logging(uuid)
@@ -29,6 +31,13 @@ def launch_clover_simulation(gazebo_world_filepath: str = None, gui: bool = True
     # if supplied, add filepath for gazebo .world file
     if gazebo_world_filepath is not None:
         cli_args.append(f"gazebo_world_filepath:={gazebo_world_filepath}")
+    # if supplied, forward custom positions to spawn_drone launch file via
+    # simulator launch file
+    if clover_pose is not None:
+        cli_args.append("use_custom_clover_position:=true")
+        cli_args.append(f"clover_x_position:={clover_pose.position.x}")
+        cli_args.append(f"clover_y_position:={clover_pose.position.y}")
+        cli_args.append(f"clover_z_position:={clover_pose.position.z}")
     # construct launch parent object for starting launch file
     this_launch = roslaunch.parent.ROSLaunchParent(uuid, [(cli_args[0], cli_args[1:])])
     this_launch.start()

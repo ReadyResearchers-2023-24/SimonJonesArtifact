@@ -12,7 +12,7 @@ import simulation_nodes
 import tensorflow as tf
 import util
 
-from geometry_msgs.msg import PoseStamped, TwistStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped, Pose
 from tensorflow.keras import layers
 from threading import Lock, Thread
 from typing import Tuple
@@ -27,6 +27,8 @@ rospy.init_node("clover_train")
 # define state space
 @dataclass
 class State:
+    desired_x: float = 0.0
+    desired_y: float = 0.0
     px: float = 0.0
     py: float = 0.0
     pz: float = 0.0
@@ -453,15 +455,11 @@ def policy(state, noise_object: OUActionNoise) -> Action:
 
 def episode_calculate_reward_metric(local_state: State, timeout_passed: bool) -> float:
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
-    desired_pos = {"x": 0, "y": 0, "z": 1}
-    distance_from_desired_pos = (
-        (local_state.px - desired_pos["x"]) ** 2
-        + (local_state.py - desired_pos["y"]) ** 2
-        + (local_state.pz - desired_pos["z"]) ** 2
-    ) ** (1 / 2)
-    reward = -distance_from_desired_pos + 100 * (
-        math.e ** (-((local_state.pz - 1) ** 2)) - 1
+    distance_from_desired_pos = math.sqrt(
+        (local_state.px - local_state.desired_x) ** 2
+        + (local_state.py - local_state.desired_y) ** 2
     )
+    reward = -100 * distance_from_desired_pos
     if timeout_passed:
         reward -= 1000
     return reward
@@ -552,13 +550,32 @@ def episode_init_and_grab_state(gazebo_world_filepath: str) -> State:
     if len(rosnode.get_node_names()) > 2:
         # kill simulation
         simulation_nodes.kill_clover_simulation()
+
+    # parse xml file that stores free poses in the generated world.
+    # the xml file is generated in the same directory.
+    # select two poses at random
+    two_free_poses: List[Pose] = np.random.choice(
+        util.parse_world_free_poses_xml(gazebo_world_filepath + "-free-poses.xml"),
+        size=2,
+        replace=False,
+    ).tolist()
+    # assign the start and end poses to the two randomly selected poses
+    start_pose = two_free_poses.pop()
+    desired_pose = two_free_poses.pop()
+
     # start simulation
-    simulation_nodes.launch_clover_simulation(gazebo_world_filepath, gui=False)
+    simulation_nodes.launch_clover_simulation(gazebo_world_filepath, gui=False, clover_pose=start_pose)
+
     # await simulation to come online by reinitializing service proxies
     service_proxies.init()
+
+    # append desired pose to the state
     state_mutex.acquire()
+    state.desired_x = desired_pose.position.x
+    state.desired_y = desired_pose.position.y
     local_state = copy.deepcopy(state)
     state_mutex.release()
+
     return local_state
 
 

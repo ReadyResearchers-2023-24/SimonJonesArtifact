@@ -1,9 +1,15 @@
 import math
 import os
 import subprocess
+import xml.etree.ElementTree as ET
+import random
+import copy
 
-from typing import List, Any, Tuple, Dict
+from typing import List, Any, Tuple, Dict, TypeVar
 from dataclasses import fields, asdict
+from geometry_msgs.msg import Pose
+
+T = TypeVar("T")
 
 
 def convert_spherical_to_cartesian(
@@ -79,3 +85,16 @@ def save_clover_train_metadata(metadata: Dict[str, List], identifier: str) -> No
 def rosclean_purge() -> None:
     """Purge ROS log files."""
     subprocess.run(["rosclean", "purge", "-y"])
+
+
+def parse_world_free_poses_xml(filepath: str) -> List[Pose]:
+    """Parse calculated free poses from xml format into a list of poses."""
+    tree = ET.parse(filepath)
+    root = tree.getroot()
+    res = []
+    for pose_element in root:
+        pose_element_obj = Pose()
+        pose_element_obj.position.x = float(pose_element.find("x").text)
+        pose_element_obj.position.y = float(pose_element.find("y").text)
+        res.append(pose_element_obj)
+    return res
