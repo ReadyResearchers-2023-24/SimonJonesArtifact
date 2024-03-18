@@ -28,8 +28,8 @@ rospy.init_node("clover_train")
 # define state space
 @dataclass
 class State:
-    desired_x: float = 0.0
-    desired_y: float = 0.0
+    x_desired: float = 0.0
+    y_desired: float = 0.0
     px: float = 0.0
     py: float = 0.0
     pz: float = 0.0
@@ -501,8 +501,8 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool, de
     collisions_mutex.release()
     # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     distance_from_desired_pos = math.sqrt(
-        (local_state.px - local_state.desired_x) ** 2
-        + (local_state.py - local_state.desired_y) ** 2
+        (local_state.px - local_state.x_desired) ** 2
+        + (local_state.py - local_state.y_desired) ** 2
     )
     reward = -100 * distance_from_desired_pos
     if timeout_passed:
@@ -618,8 +618,8 @@ def episode_init_and_grab_state(gazebo_world_filepath: str) -> State:
 
     # append desired pose to the state
     state_mutex.acquire()
-    state.desired_x = desired_pose.position.x
-    state.desired_y = desired_pose.position.y
+    state.x_desired = desired_pose.position.x
+    state.y_desired = desired_pose.position.y
     local_state = copy.deepcopy(state)
     state_mutex.release()
 
