@@ -13,11 +13,9 @@ Usage:
 
 Options:
   -h, --help             Show this screen.
-  --num-worlds=<int>     Number of worlds to generate [default: 10]
-  --worlds-dir=<path>    Directory where generated worlds will be saved
-                         [default: pcg/models/].
-  --models-dir=<path>    Directory where generated models will be saved
-                         [default: pcg/resources/worlds].
+  --num-worlds=<int>     Number of worlds to generate [default is 10]
+  --worlds-dir=<path>    Directory where generated worlds will be saved [default is pcg/models/].
+  --models-dir=<path>    Directory where generated models will be saved [default is pcg/resources/worlds].
 
 '''
 
@@ -26,14 +24,14 @@ if __name__ == "__main__":
 
     worlds_dir = opts['--worlds-dir'] or None
     models_dir = opts['--models-dir'] or None
-    num_worlds = int(opts['--num-worlds'])
+    num_worlds = opts['--num-worlds'] or 10
 
     # using +2 because minimum number of rectangles is 2
     # when using plural method
     for i in [number + 2 for number in range(num_worlds)]:
         generate_room(
-            n_rectangles=i,
             filename=f"{i}-rectangles-walls",
+            n_rectangles=i,
             worlds_dir_path=worlds_dir,
             models_dir_path=models_dir
         )
