@@ -16,9 +16,6 @@ import xml.etree.ElementTree as ET
 
 rospy.init_node("generate")
 
-# FIXME: add parquet_plane model. currently,
-# the only way to add it is manually
-
 def generate_room(
     n_rectangles: float,
     filename: str,
@@ -212,8 +209,15 @@ def generate_room(
 
     # move models from default directory to custom one
     gazebo_models_path = os.path.join(os.path.expanduser("~"), ".gazebo", "models")
-    shutil.move(os.path.join(gazebo_models_path, f"walls_{n_rectangles}"), models_dir_path)
-    shutil.move(os.path.join(gazebo_models_path, f"ceiling_{n_rectangles}"), models_dir_path)
+    walls_dir = os.path.join(models_dir_path, f"walls_{n_rectangles}")
+    ceiling_dir = os.path.join(models_dir_path, f"ceiling_{n_rectangles}")
+    # clean up existing models
+    if os.path.exists(walls_dir):
+        shutil.rmtree(walls_dir)
+    if os.path.exists(ceiling_dir):
+        shutil.rmtree(ceiling_dir)
+    shutil.copytree(os.path.join(gazebo_models_path, f"walls_{n_rectangles}"), walls_dir, dirs_exist_ok=True)
+    shutil.copytree(os.path.join(gazebo_models_path, f"ceiling_{n_rectangles}"), ceiling_dir, dirs_exist_ok=True)
 
     path_to_world = os.path.join(worlds_dir_path, f"{filename}.world")
     customize_world_file(path_to_world=path_to_world)
