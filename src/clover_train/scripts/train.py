@@ -499,12 +499,12 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool, de
     # clean collision_timestamps_queue
     collision_timestamps_queue = []
     collisions_mutex.release()
-    # NOTE: temporary: for now, try to hover at (x,y,z) = (0,1,0)
     distance_from_desired_pos = math.sqrt(
         (local_state.px - local_state.x_desired) ** 2
         + (local_state.py - local_state.y_desired) ** 2
     )
-    reward = -100 * distance_from_desired_pos
+    print("[episode_calculate_reward_metric] |p_desired - p_current|: ", distance_from_desired_pos)
+    reward = -1000 * distance_from_desired_pos
     if timeout_passed:
         reward -= 1000
     if deduct_flying_low_to_ground:
@@ -514,36 +514,37 @@ def episode_calculate_reward_metric(local_state: State, timeout_passed: bool, de
 
 
 def episode_calculate_if_done(local_state: State):
-    # NOTE: temporary for now, done if 10m away from goal
-    desired_pos = {"x": 0.0, "y": 1.0, "z": 0.0}
-    print("[episode_calculate_if_done] trying to acquire mutex...")
-    print("[episode_calculate_if_done] mutex acquired!")
-    distance_from_desired_pos = (
-        (local_state.px - desired_pos["x"]) ** 2
-        + (local_state.py - desired_pos["y"]) ** 2
-        + (local_state.pz - desired_pos["z"]) ** 2
-    ) ** (1 / 2)
-    print("distance from desired position: ", distance_from_desired_pos)
+    distance_from_desired_pos = math.sqrt(
+        (local_state.px - local_state.x_desired) ** 2
+        + (local_state.py - local_state.y_desired) ** 2
+    )
+    print("[episode_calculate_if_done] |p_desired - p_current|: ", distance_from_desired_pos)
     # get current angular orientation
     (roll, pitch, yaw) = util.quaternion_to_euler_angles(
         local_state.qx, local_state.qy, local_state.qz, local_state.qw
     )
     print(f"[episode_calculate_if_done] roll: {roll} pitch: {pitch} yaw: {yaw}")
+    # episode is done if:
+    #   quadcopter is within `action_movement_threshold` from goal
+    #   roll >= pi/2 (fallen over)
+    #   pitch >= pi/2 (fallen over)
     done = (
         False
-        or distance_from_desired_pos > 10.0
-        or abs(roll) > math.pi / 2
-        or abs(pitch) > math.pi / 2
+        or distance_from_desired_pos <= action_movement_threshold
+        or abs(roll) >= math.pi / 2
+        or abs(pitch) >= math.pi / 2
     )
     return done
 
 
 def is_armed() -> bool:
+    """Check if quadcopter is armed."""
     mavros_state = rospy.wait_for_message("mavros/state", mavros_msg.State)
     return mavros_state.armed
 
 
 def wait_until_disarmed() -> None:
+    """Return once quadcopter is disarmed."""
     rospy.loginfo("[wait_until_disarmed] entered")
     while not rospy.is_shutdown():
         if not is_armed():
@@ -552,6 +553,7 @@ def wait_until_disarmed() -> None:
 
 
 def force_disarm() -> None:
+    """Use mavros messages to force the quadcopter to disarm."""
     service_proxies.mavros_command(
         command=mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
         param1=0,  # disarm
@@ -608,10 +610,13 @@ def episode_init_and_grab_state(gazebo_world_filepath: str) -> State:
     ).tolist()
     # assign the start and end poses to the two randomly selected poses
     start_pose = two_free_poses.pop()
+    # add default initial height to start position.
+    # this keeps the drone from getting stuck in the ground
+    start_pose.position.z = 0.3
     desired_pose = two_free_poses.pop()
 
     # start simulation
-    simulation_nodes.launch_clover_simulation(gazebo_world_filepath, gui=False, clover_pose=start_pose)
+    simulation_nodes.launch_clover_simulation(gazebo_world_filepath, gui=True, clover_pose=start_pose)
 
     # await simulation to come online by reinitializing service proxies
     service_proxies.init()
@@ -766,8 +771,22 @@ for gazebo_world_filepath in cirriculum_worlds:
         num_actions_taken = 0
         num_actions_per_ep = 4
 
-        # take off to get drone off of ground for first step
-        navigate_wait(x=0, y=0, z=0.5, frame_id="body", auto_arm=True)
+        service_proxies.unpause_physics()
+        startup_takeoff_failed = True
+        # take off to get drone off of ground for first step.
+        # attempt to take off until we do it successfully.
+        while not rospy.is_shutdown() and not startup_takeoff_failed:
+            print("attempting to navigate to initial position of (0, 0, 0.5)")
+            # (effectively, startup_takeoff_failed is not timeout_passed)
+            startup_takeoff_failed = not navigate_wait(
+                x=0,
+                y=0,
+                z=0.5,
+                frame_id="body",
+                auto_arm=True,
+                timeout=10
+            )
+        service_proxies.pause_physics()
 
         while not rospy.is_shutdown() and num_actions_taken < num_actions_per_ep:
             tf_prev_state = tf.expand_dims(
