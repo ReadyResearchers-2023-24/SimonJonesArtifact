@@ -27,14 +27,14 @@ if __name__ == "__main__":
     num_worlds = opts['--num-worlds'] or 10
 
     for i in [8, 9, 10, 11]:
-        print(f"starting {i}-rectangles-walls.world")
+        print(f"({i} rectangles) starting")
         generate_room(
             filename=f"{i}-rectangles-walls",
             n_rectangles=i,
             worlds_dir_path=worlds_dir,
             models_dir_path=models_dir
         )
-        print(f"finished {i}-rectangles-walls.world")
+        print(f"({i} rectangles) finished")
     exit(0)
 
     # using +2 because minimum number of rectangles is 2

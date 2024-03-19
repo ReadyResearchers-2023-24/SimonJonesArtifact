@@ -187,6 +187,7 @@ def generate_room(
                 pose_to_persist.position.x = random_free_pose.x
                 pose_to_persist.position.y = random_free_pose.y
                 free_poses_to_persist.append(pose_to_persist)
+    print(f"({n_rectangles} rectangles) finished finding free spots")
 
     rospack = rospkg.RosPack()
     pcg_path = rospack.get_path("pcg")
@@ -200,12 +201,14 @@ def generate_room(
             pcg_path, "models"
         )
 
+    print(f"({n_rectangles} rectangles) exporting world...")
     # save world
     world_gen.export_world(
         filename=filename,
         output_dir=worlds_dir_path,
         with_default_ground_plane=False,
     )
+    print(f"({n_rectangles} rectangles) finished exporting world")
 
     # move models from default directory to custom one
     gazebo_models_path = os.path.join(os.path.expanduser("~"), ".gazebo", "models")
