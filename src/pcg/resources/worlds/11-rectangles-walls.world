@@ -6,7 +6,7 @@
     </wind>
     <gravity>0 0 -9.8</gravity>
     <model name="static_cylinder">
-      <pose frame="">-9.06171 -4.84124 0.672706 0 0 -1.67063</pose>
+      <pose frame="">2.57236 -3.92461 0.339561 0 -0 2.93908</pose>
       <static>1</static>
       <self_collide>0</self_collide>
       <allow_auto_disable>0</allow_auto_disable>
@@ -17,8 +17,8 @@
         <collision name="collision">
           <geometry>
             <cylinder>
-              <radius>1.765161962636558</radius>
-              <length>1.3454120736595867</length>
+              <radius>1.2403268188352738</radius>
+              <length>0.6791229968778483</length>
             </cylinder>
           </geometry>
           <pose frame="">0 0 0 0 -0 0</pose>
@@ -27,50 +27,13 @@
         <visual name="visual">
           <geometry>
             <cylinder>
-              <radius>1.765161962636558</radius>
-              <length>1.3454120736595867</length>
+              <radius>1.2403268188352738</radius>
+              <length>0.6791229968778483</length>
             </cylinder>
           </geometry>
           <material>
-            <ambient>0.345098 0.737255 0.0313725 1</ambient>
-            <diffuse>0.34509803921568627 0.7372549019607844 0.03137254901960784 1</diffuse>
-          </material>
-          <pose frame="">0 0 0 0 -0 0</pose>
-          <cast_shadows>1</cast_shadows>
-          <transparency>0.0</transparency>
-        </visual>
-        <pose frame="">0 0 0 0 -0 0</pose>
-      </link>
-    </model>
-    <model name="static_cylinder_1">
-      <pose frame="">6.9994 -5.28445 0.461871 0 0 -0.64314</pose>
-      <static>1</static>
-      <self_collide>0</self_collide>
-      <allow_auto_disable>0</allow_auto_disable>
-      <link name="link">
-        <kinematic>0</kinematic>
-        <gravity>1</gravity>
-        <self_collide>0</self_collide>
-        <collision name="collision">
-          <geometry>
-            <cylinder>
-              <radius>1.5818516569220684</radius>
-              <length>0.9237411479016462</length>
-            </cylinder>
-          </geometry>
-          <pose frame="">0 0 0 0 -0 0</pose>
-          <max_contacts>20</max_contacts>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <cylinder>
-              <radius>1.5818516569220684</radius>
-              <length>0.9237411479016462</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>1 1 0.760784 1</ambient>
-            <diffuse>1.0 1.0 0.7607843137254902 1</diffuse>
+            <ambient>0.964706 0.407843 0.556863 1</ambient>
+            <diffuse>0.9647058823529412 0.40784313725490196 0.5568627450980392 1</diffuse>
           </material>
           <pose frame="">0 0 0 0 -0 0</pose>
           <cast_shadows>1</cast_shadows>
@@ -80,7 +43,7 @@
       </link>
     </model>
     <model name="dyn_box">
-      <pose frame="">8.51066 -0.00255453 0.480294 0 -0 2.22445</pose>
+      <pose frame="">-0.112117 6.78788 1.38852 0 0 -0.950603</pose>
       <static>0</static>
       <self_collide>0</self_collide>
       <allow_auto_disable>0</allow_auto_disable>
@@ -91,7 +54,7 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>0.119099 0.357333 0.960588</size>
+              <size>4.59757 4.79995 2.77705</size>
             </box>
           </geometry>
           <pose frame="">0 0 0 0 -0 0</pose>
@@ -100,12 +63,12 @@
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.119099 0.357333 0.960588</size>
+              <size>4.59757 4.79995 2.77705</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.866667 0.839216 0.0941176 1</ambient>
-            <diffuse>0.8666666666666667 0.8392156862745098 0.09411764705882353 1</diffuse>
+            <ambient>0.780392 0.278431 0.403922 1</ambient>
+            <diffuse>0.7803921568627451 0.2784313725490196 0.403921568627451 1</diffuse>
           </material>
           <pose frame="">0 0 0 0 -0 0</pose>
           <cast_shadows>1</cast_shadows>
@@ -113,21 +76,21 @@
         </visual>
         <inertial>
           <inertia>
-            <ixx>0.05032159962557234</ixx>
-            <iyy>0.04488413202229711</iyy>
-            <izz>0.006796534649897366</izz>
+            <ixx>1.3162738842814965</ixx>
+            <iyy>1.234869288223089</iyy>
+            <izz>1.8909422509244906</izz>
             <ixy>0.0</ixy>
             <ixz>0.0</ixz>
             <iyz>0.0</iyz>
           </inertia>
           <pose frame="">0 0 0 0 -0 0</pose>
-          <mass>0.5748767248412469</mass>
+          <mass>0.5136428425951027</mass>
         </inertial>
         <pose frame="">0 0 0 0 -0 0</pose>
       </link>
     </model>
     <model name="dyn_box_1">
-      <pose frame="">-5.99715 3.74385 0.0669642 0 0 -2.42987</pose>
+      <pose frame="">-5.99178 8.41546 1.95767 0 -0 1.1997</pose>
       <static>0</static>
       <self_collide>0</self_collide>
       <allow_auto_disable>0</allow_auto_disable>
@@ -138,7 +101,7 @@
         <collision name="collision">
           <geometry>
             <box>
-              <size>3.91445 0.0293832 0.133928</size>
+              <size>3.77422 0.0405218 3.91533</size>
             </box>
           </geometry>
           <pose frame="">0 0 0 0 -0 0</pose>
@@ -147,12 +110,12 @@
         <visual name="visual">
           <geometry>
             <box>
-              <size>3.91445 0.0293832 0.133928</size>
+              <size>3.77422 0.0405218 3.91533</size>
             </box>
           </geometry>
           <material>
-            <ambient>1 1 0.0784314 1</ambient>
-            <diffuse>1.0 1.0 0.0784313725490196 1</diffuse>
+            <ambient>0.792157 0.482353 0.501961 1</ambient>
+            <diffuse>0.792156862745098 0.4823529411764706 0.5019607843137255 1</diffuse>
           </material>
           <pose frame="">0 0 0 0 -0 0</pose>
           <cast_shadows>1</cast_shadows>
@@ -160,28 +123,65 @@
         </visual>
         <inertial>
           <inertia>
-            <ixx>0.00041795389532333347</ixx>
-            <iyy>0.3410486530366007</iyy>
-            <izz>0.34066908708462673</izz>
+            <ixx>1.1927884914722653</ixx>
+            <iyy>2.3009015575441274</iyy>
+            <izz>1.1083685638994984</izz>
             <ixy>0.0</ixy>
             <ixz>0.0</ixz>
             <iyz>0.0</iyz>
           </inertia>
           <pose frame="">0 0 0 0 -0 0</pose>
-          <mass>0.26677650384161955</mass>
+          <mass>0.933599557756421</mass>
         </inertial>
+        <pose frame="">0 0 0 0 -0 0</pose>
+      </link>
+    </model>
+    <model name="static_cylinder_1">
+      <pose frame="">3.59666 -7.55673 0.225346 0 0 -0.435739</pose>
+      <static>1</static>
+      <self_collide>0</self_collide>
+      <allow_auto_disable>0</allow_auto_disable>
+      <link name="link">
+        <kinematic>0</kinematic>
+        <gravity>1</gravity>
+        <self_collide>0</self_collide>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.08633876422519937</radius>
+              <length>0.450691455576256</length>
+            </cylinder>
+          </geometry>
+          <pose frame="">0 0 0 0 -0 0</pose>
+          <max_contacts>20</max_contacts>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.08633876422519937</radius>
+              <length>0.450691455576256</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.0156863 0.521569 0.819608 1</ambient>
+            <diffuse>0.01568627450980392 0.5215686274509804 0.8196078431372549 1</diffuse>
+          </material>
+          <pose frame="">0 0 0 0 -0 0</pose>
+          <cast_shadows>1</cast_shadows>
+          <transparency>0.0</transparency>
+        </visual>
         <pose frame="">0 0 0 0 -0 0</pose>
       </link>
     </model>
     <include>
       <uri>model://walls_11</uri>
-      <pose frame="">0 0 1.5 0 -0 0</pose>
+      <pose frame="">0 0 3 0 -0 0</pose>
       <name>walls_11</name>
       <static>1</static>
     </include>
     <include>
       <uri>model://ceiling_11</uri>
-      <pose frame="">0 0 3 0 -0 0</pose>
+      <pose frame="">0 0 6 0 -0 0</pose>
       <name>ceiling_11</name>
       <static>1</static>
     </include>
