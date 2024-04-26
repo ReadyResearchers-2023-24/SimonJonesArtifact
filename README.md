@@ -37,13 +37,13 @@ Spring 2024
 This project aims to train the COEX Clover quadcopter equipped with an array of
 Time of Flight (ToF) sensors to perform basic navigation and obstacle avoidance
 in randomized scenarios using a Deep Deterministic Policy Gradient (DDPG)
-reinforcement learning algorithm. Using randomized environments will test the
+reinforcement learning algorithm. Using randomized environments tests the
 effectiveness of curriculum learning for reinforcement learning and the overall
 strengths and weaknesses of DDPG for quadcopter control.  By training the
-quadcopter to explore randomized environments, this can also demonstrate how
-using simpler, more economically affordable sensors can enable a quadcopter to
-fly in a GPS-denied environment without the use of LiDAR, which is typically an
-order of magnitude more expensive.
+quadcopter to explore randomized environments, this also demonstrates how using
+simpler, more economically affordable sensors could potentially enable a
+quadcopter to fly in a GPS-denied environment without the use of LiDAR, which is
+typically an order of magnitude more expensive.
 
 ## Quick Start
 
